@@ -1,4 +1,4 @@
-import type { Difficulty, ItemKind, Vec3 } from './level'
+import type { Difficulty, ItemKind, Vec3 } from './level.ts'
 
 export type Phase =
   | 'lobby'
