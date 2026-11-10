@@ -6,6 +6,7 @@ import type { ItemKind } from '../../../shared/level'
 import type { ItemState } from '../../../shared/protocol'
 import { live, send, useNet } from '../net'
 import { sfx } from './audio'
+import { getItemGeo, getItemMats } from './item-materials'
 import { getMats } from './materials'
 import { tileFaceTexture } from './textures'
 import { hold, interactables, itemLabels, keys, useUi } from './ui'
@@ -32,11 +33,6 @@ const CARRY: Record<ItemKind, [number, number, number]> = {
 const PLACE_REACH: Partial<Record<ItemKind, number>> = { charge: 1.3, crate: 1.5 }
 // Putting down takes a moment: the item swings from the hand to the crosshair first.
 const PLACE_MS = 220
-const GIRTH: Record<ItemKind, number> = {
-  cell: 0.09, can: 0.04, bottle: 0.05, helmet: 0.16, cone: 0.13, pixel: 0.15, hose: 0.13, pipe: 0.05,
-  tile: 0.04, chair: 0.25, crate: 0.4, charge: 0.22,
-}
-
 const MASS: Record<ItemKind, number> = {
   cell: 2, charge: 25, crate: 8, can: 0.3, cone: 1, bottle: 0.5, chair: 4, pixel: 3, helmet: 1, pipe: 3, tile: 1.5, hose: 3,
 }
@@ -50,7 +46,7 @@ function Item({ id }: { id: string }) {
   const { camera } = useThree()
   const { rapier } = useRapier()
   const st = useRef({ mode: -1, sendT: 0, still: 0, releasedAt: 0, placeAt: 0 })
-  const tmp = useMemo(() => ({ v: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), a: new THREE.Vector3() }), [])
+  const tmp = useMemo(() => ({ v: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), a: new THREE.Vector3(), q2: new THREE.Quaternion() }), [])
 
   useEffect(() => {
     const g = group.current
@@ -77,6 +73,7 @@ function Item({ id }: { id: string }) {
     // pick up when the server confirms
     if (it.holder === me && hold.id !== id && now - st.current.releasedAt > 600) {
       hold.id = id
+      hold.rotate = 0
       st.current.placeAt = 0
       useUi.setState({ holding: id })
       sfx.grab()
@@ -114,10 +111,17 @@ function Item({ id }: { id: string }) {
       const gap = Math.hypot(dx, dy, dz)
       const k = placing ? 22 : 16
       rb.setLinvel({ x: dx * k, y: dy * k, z: dz * k }, true)
-      const av = rb.angvel()
-      rb.setAngvel({ x: av.x * 0.7, y: av.y * 0.7 + (keys.has('KeyR') ? 4 : 0), z: av.z * 0.7 }, true)
+      // the item turns to face the player the same way every time (a tile shows its picture, a cell stands
+      // upright in the hand); R turns it about its vertical
+      if (keys.has('KeyR')) hold.rotate += dt * 3
+      const r = rb.rotation()
+      const turn = tmp.q.setFromAxisAngle(tmp.a.set(0, 1, 0), hold.rotate).premultiply(camera.quaternion).multiply(tmp.q2.set(r.x, r.y, r.z, r.w).invert())
+      if (turn.w < 0) turn.set(-turn.x, -turn.y, -turn.z, -turn.w)
+      const half = Math.sqrt(1 - Math.min(1, turn.w * turn.w))
+      const spin = half < 1e-4 ? 0 : (2 * Math.acos(Math.min(1, turn.w)) * 12) / half
+      rb.setAngvel({ x: turn.x * spin, y: turn.y * spin, z: turn.z * spin }, true)
       hold.view.set(p.x, p.y, p.z).sub(camera.position).applyQuaternion(tmp.q.copy(camera.quaternion).invert())
-      hold.girth = GIRTH[it.kind]
+      hold.kind = it.kind
 
       const placed = placing && (gap < 0.12 || now - st.current.placeAt > PLACE_MS)
       const release = placed || hold.throwReq || gap > 2.6
@@ -221,6 +225,11 @@ function ItemCollider({ kind }: { kind: ItemKind }) {
   }
 }
 
+// ---------- what the items look like ----------
+// Geometry and materials live in item-materials.ts and are shared by every item of a kind
+// (dispose={null} keeps React from freeing them when one item unmounts). Every prop stays inside its
+// collider above.
+
 function CellMesh({ socketed, fake }: { socketed: boolean; fake: boolean }) {
   const core = useRef<THREE.MeshBasicMaterial>(null)
   useFrame(({ clock }) => {
@@ -235,83 +244,65 @@ function CellMesh({ socketed, fake }: { socketed: boolean; fake: boolean }) {
       m.color.setRGB(tell ? 3 : 0.13 * pulse, tell ? 0.2 : 0.94 * pulse, tell ? 0.3 : pulse)
     }
   })
-  const mats = getMats()
+  const m = getItemMats()
+  const g = getItemGeo().cell
   return (
-    <group>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.07, 0.07, 0.3, 14]} />
+    <group dispose={null}>
+      <mesh geometry={g.core}>
         <meshBasicMaterial ref={core} toneMapped={false} />
       </mesh>
-      {[0.17, -0.17].map((y) => (
-        <mesh key={y} position-y={y} material={mats.metal} castShadow>
-          <cylinderGeometry args={[0.095, 0.095, 0.07, 14]} />
-        </mesh>
-      ))}
-      <mesh>
-        <cylinderGeometry args={[0.09, 0.09, 0.3, 14, 1, true]} />
-        <meshPhysicalMaterial color="#9ff" transparent opacity={0.18} roughness={0} />
-      </mesh>
+      <mesh geometry={g.frame} material={m.darkSteel} castShadow />
+      <mesh geometry={g.terminals} material={m.brass} />
+      <mesh geometry={g.paint} material={m.acidPaint} />
+      <mesh geometry={g.glass} material={m.cellGlass} />
     </group>
   )
 }
 
 function ChargeMesh() {
   const led = useRef<THREE.MeshBasicMaterial>(null)
-  const mats = getMats()
   useFrame(({ clock }) => {
     if (led.current) led.current.color.setRGB(Math.sin(clock.elapsedTime * 8) > 0 ? 5 : 0.2, 0, 0)
   })
+  const m = getItemMats()
+  const g = getItemGeo().charge
   return (
-    <group>
-      <mesh material={mats.hazard} castShadow>
-        <boxGeometry args={[0.6, 0.4, 0.4]} />
-      </mesh>
-      {[-0.15, 0, 0.15].map((x) => (
-        <mesh key={x} position={[x, 0.05, 0.205]} rotation-x={Math.PI / 2} material={mats.rust}>
-          <cylinderGeometry args={[0.055, 0.055, 0.02, 10]} />
-        </mesh>
-      ))}
-      <mesh position={[0.22, 0.21, 0.12]}>
-        <sphereGeometry args={[0.03, 8, 8]} />
+    <group dispose={null}>
+      <mesh geometry={g.body} material={m.chargeShell} castShadow />
+      <mesh geometry={g.bands} material={m.stripes} />
+      <mesh geometry={g.panel} material={m.rubber} />
+      <mesh geometry={g.sticks} material={m.brass} />
+      <mesh geometry={g.plate} material={m.chargePlate} />
+      <mesh geometry={g.rubber} material={m.rubber} castShadow />
+      <mesh geometry={g.display} material={m.timer} />
+      <mesh geometry={g.wire} material={m.wire} />
+      <mesh geometry={g.bolts} material={m.steel} />
+      <mesh geometry={g.led}>
         <meshBasicMaterial ref={led} toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 0.22, 0]} material={mats.black}>
-        <boxGeometry args={[0.3, 0.05, 0.25]} />
       </mesh>
     </group>
   )
 }
 
 function PixelMesh() {
-  const mats = getMats()
+  const m = getItemMats()
+  const g = getItemGeo().pixel
   return (
-    <group>
-      <mesh material={mats.metal} castShadow position={[0, -0.03, 0]}>
-        <boxGeometry args={[0.42, 0.22, 0.22]} />
-      </mesh>
-      <mesh material={mats.black} position={[0.22, 0.1, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.18, 0.2]} />
-      </mesh>
-      {[-0.06, 0.06].map((z) => (
-        <group key={z}>
-          <mesh material={mats.black} position={[0.24, 0.23, z]} rotation-z={-0.2}>
-            <coneGeometry args={[0.04, 0.09, 4]} />
-          </mesh>
-          <mesh position={[0.33, 0.12, z]}>
-            <sphereGeometry args={[0.022, 8, 8]} />
-            <meshBasicMaterial color={new THREE.Color('#22f0ff').multiplyScalar(4)} toneMapped={false} />
-          </mesh>
-        </group>
-      ))}
-      <mesh material={mats.neonPink} position={[-0.3, 0.06, 0]} rotation-z={0.9}>
-        <cylinderGeometry args={[0.015, 0.015, 0.25, 6]} />
-      </mesh>
+    <group dispose={null}>
+      <mesh geometry={g.shell} material={m.shell} castShadow />
+      <mesh geometry={g.dark} material={m.darkSteel} castShadow />
+      <mesh geometry={g.visor} material={m.gloss} />
+      <mesh geometry={g.collar} material={m.collar} />
+      <mesh geometry={g.cyan} material={m.glowCyan} />
+      <mesh geometry={g.pink} material={m.glowPink} />
     </group>
   )
 }
 
-function ItemMesh({ kind, socketed, fake, id }: { kind: ItemKind; socketed: boolean; fake: boolean; id: string }) {
+export function ItemMesh({ kind, socketed, fake, id }: { kind: ItemKind; socketed: boolean; fake: boolean; id: string }) {
   const mats = getMats()
+  const m = getItemMats()
+  const geo = getItemGeo()
   switch (kind) {
     case 'tile': return <TileMesh index={Number(id.replace('tile', ''))} />
     case 'hose': return <HoseMesh />
@@ -320,57 +311,63 @@ function ItemMesh({ kind, socketed, fake, id }: { kind: ItemKind; socketed: bool
     case 'pixel': return <PixelMesh />
     case 'crate':
       return (
-        <mesh material={mats.wood} castShadow receiveShadow>
-          <boxGeometry args={[0.8, 0.8, 0.8]} />
-        </mesh>
+        <group dispose={null}>
+          <mesh geometry={geo.crate.panels} material={m.planks} castShadow receiveShadow />
+          <mesh geometry={geo.crate.beams} material={m.beam} castShadow receiveShadow />
+          <mesh geometry={geo.crate.corners} material={m.darkSteel} />
+          <mesh geometry={geo.crate.tags} material={m.glowCyan} />
+        </group>
       )
     case 'can':
       return (
-        <mesh castShadow>
-          <cylinderGeometry args={[0.04, 0.04, 0.14, 12]} />
-          <meshStandardMaterial color="#ff2e88" emissive="#ff2e88" emissiveIntensity={0.6} metalness={0.8} roughness={0.3} />
-        </mesh>
+        <group dispose={null}>
+          <mesh geometry={geo.can.label} material={m.canLabel} castShadow />
+          <mesh geometry={geo.can.alu} material={m.alu} />
+        </group>
       )
     case 'cone':
       return (
-        <mesh castShadow position-y={0}>
-          <coneGeometry args={[0.16, 0.6, 16]} />
-          <meshStandardMaterial color="#ff7a1a" roughness={0.6} />
-        </mesh>
+        <group dispose={null}>
+          <mesh geometry={geo.cone.body} material={m.coneOrange} castShadow />
+          <mesh geometry={geo.cone.base} material={m.rubber} castShadow />
+          <mesh geometry={geo.cone.bands} material={m.reflective} />
+        </group>
       )
     case 'bottle':
       return (
-        <mesh castShadow>
-          <cylinderGeometry args={[0.03, 0.05, 0.3, 10]} />
-          <meshStandardMaterial color="#1a6b4a" transparent opacity={0.7} roughness={0.1} />
-        </mesh>
+        <group dispose={null}>
+          <mesh geometry={geo.bottle.drink} material={m.drink} />
+          <mesh geometry={geo.bottle.label} material={m.bottleLabel} />
+          <mesh geometry={geo.bottle.cap} material={m.capAmber} />
+          <mesh geometry={geo.bottle.glass} material={m.bottleGlass} castShadow />
+        </group>
       )
     case 'chair':
       return (
-        <group>
-          <mesh material={mats.metal} position-y={0} castShadow>
-            <boxGeometry args={[0.5, 0.06, 0.5]} />
-          </mesh>
-          <mesh material={mats.metal} position={[0, 0.3, -0.22]} castShadow>
-            <boxGeometry args={[0.5, 0.6, 0.05]} />
-          </mesh>
-          <mesh material={mats.black} position-y={-0.23}>
-            <boxGeometry args={[0.45, 0.45, 0.45]} />
-          </mesh>
+        <group dispose={null}>
+          <mesh geometry={geo.chair.frame} material={m.steel} castShadow />
+          <mesh geometry={geo.chair.shell} material={m.seat} castShadow />
+          <mesh geometry={geo.chair.feet} material={m.rubber} />
+          <mesh geometry={geo.chair.bolts} material={m.steel} />
+          <mesh geometry={geo.chair.tag} material={m.glowAcid} />
         </group>
       )
     case 'helmet':
       return (
-        <mesh castShadow>
-          <sphereGeometry args={[0.16, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#e6ff3a" roughness={0.5} />
-        </mesh>
+        <group dispose={null}>
+          <mesh geometry={geo.helmet.shell} material={m.helmet} castShadow />
+          <mesh geometry={geo.helmet.dark} material={m.rubber} />
+          <mesh geometry={geo.helmet.lens} material={m.glowLamp} />
+        </group>
       )
     case 'pipe':
       return (
-        <mesh material={mats.rust} rotation-z={Math.PI / 2} castShadow>
-          <cylinderGeometry args={[0.05, 0.05, 1, 10]} />
-        </mesh>
+        <group rotation-z={Math.PI / 2} dispose={null}>
+          <mesh geometry={geo.pipe.tube} material={mats.rust} castShadow />
+          <mesh geometry={geo.pipe.fittings} material={m.steel} castShadow />
+          <mesh geometry={geo.pipe.paint} material={m.amberPaint} />
+          <mesh geometry={geo.pipe.bore} material={m.rubber} />
+        </group>
       )
   }
 }
@@ -379,32 +376,31 @@ function TileMesh({ index }: { index: number }) {
   const code = useNet((s) => s.game?.armCode ?? '0000')
   const face = tileFaceTexture(code, index)
   const mats = getMats()
+  const m = getItemMats()
+  const g = getItemGeo().tile
   return (
-    <group>
-      <mesh material={mats.concreteDark} castShadow receiveShadow>
-        <boxGeometry args={[0.54, 0.54, 0.05]} />
-      </mesh>
-      <mesh position-z={0.027}>
-        <planeGeometry args={[0.52, 0.52]} />
-        <meshStandardMaterial map={face} emissiveMap={face} emissive="#ffffff" emissiveIntensity={0.35} roughness={0.5} />
+    <group dispose={null}>
+      <mesh geometry={g.slab} material={mats.concreteDark} castShadow receiveShadow />
+      <mesh geometry={g.back} material={mats.concrete} />
+      <mesh geometry={g.frame} material={m.bronze} />
+      <mesh geometry={g.face} position-z={0.027}>
+        <meshStandardMaterial map={face} emissiveMap={face} emissive="#ffffff" emissiveIntensity={0.35} roughness={0.32} />
       </mesh>
     </group>
   )
 }
 
 function HoseMesh() {
+  const m = getItemMats()
+  const g = getItemGeo().hose
   return (
-    <group rotation-x={Math.PI / 2}>
-      {[0, 1, 2].map((i) => (
-        <mesh key={i} position-z={-0.08 + i * 0.08} castShadow>
-          <torusGeometry args={[0.2, 0.04, 8, 24]} />
-          <meshStandardMaterial color="#ff7a1a" roughness={0.6} />
-        </mesh>
-      ))}
-      <mesh position={[0.22, 0, 0.12]} rotation-x={Math.PI / 2}>
-        <cylinderGeometry args={[0.05, 0.05, 0.16, 10]} />
-        <meshStandardMaterial color="#9aa3ad" metalness={0.8} roughness={0.3} />
-      </mesh>
+    <group dispose={null}>
+      <mesh geometry={g.coils} material={m.weave} castShadow />
+      <mesh geometry={g.straps} material={m.rubber} />
+      <mesh geometry={g.buckles} material={m.steel} />
+      <mesh geometry={g.nozzle} material={m.brass} castShadow />
+      <mesh geometry={g.grip} material={m.rubber} />
+      <mesh geometry={g.tag} material={m.glowAmber} />
     </group>
   )
 }

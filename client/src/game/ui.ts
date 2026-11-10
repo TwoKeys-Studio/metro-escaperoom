@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import * as THREE from 'three'
+import type { ItemKind } from '../../../shared/level'
 
 export type Interact =
   | { kind: 'item'; id: string; label: string }
@@ -17,14 +18,15 @@ export const interactables = new Map<THREE.Object3D, () => Interact | null>()
 
 export const hold = {
   id: null as string | null,
+  /** Extra turn about the vertical the player gave the carried item with R, radians. */
   rotate: 0,
   throwReq: false,
   dropReq: false,
   console: null as 'a' | 'b' | null,
   /** Where the carried item is, in camera space. The right hand wraps around this point. */
   view: new THREE.Vector3(),
-  /** Rough radius of the carried item: how wide the hand has to open. */
-  girth: 0.1,
+  /** What is being carried: the right hand picks its grip from this. */
+  kind: null as ItemKind | null,
 }
 
 export const keys = new Set<string>()
