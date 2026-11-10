@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type * as THREE from 'three'
+import * as THREE from 'three'
 
 export type Interact =
   | { kind: 'item'; id: string; label: string }
@@ -21,6 +21,10 @@ export const hold = {
   throwReq: false,
   dropReq: false,
   console: null as 'a' | 'b' | null,
+  /** Where the carried item is, in camera space. The right hand wraps around this point. */
+  view: new THREE.Vector3(),
+  /** Rough radius of the carried item: how wide the hand has to open. */
+  girth: 0.1,
 }
 
 export const keys = new Set<string>()

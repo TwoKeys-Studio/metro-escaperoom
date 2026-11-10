@@ -20,6 +20,23 @@ export function Items() {
   )
 }
 
+// Where a carried item floats, in camera space: [right, down, forward] in metres. Off to the lower right,
+// like something held in the right hand, so it never covers the middle of the screen.
+const CARRY: Record<ItemKind, [number, number, number]> = {
+  cell: [0.36, 0.3, 0.85], can: [0.34, 0.28, 0.75], bottle: [0.34, 0.26, 0.75], helmet: [0.38, 0.32, 0.85],
+  cone: [0.4, 0.36, 0.9], pixel: [0.38, 0.32, 0.9], hose: [0.4, 0.34, 0.9], pipe: [0.38, 0.34, 0.95],
+  tile: [0.42, 0.34, 0.95], chair: [0.52, 0.5, 1.2], crate: [0.55, 0.52, 1.35],
+  charge: [0.2, 0.55, 1.15], // heavy: lugged low in front with both arms
+}
+// How far in front of the eyes an item is put down, straight along the crosshair.
+const PLACE_REACH: Partial<Record<ItemKind, number>> = { charge: 1.3, crate: 1.5 }
+// Putting down takes a moment: the item swings from the hand to the crosshair first.
+const PLACE_MS = 220
+const GIRTH: Record<ItemKind, number> = {
+  cell: 0.09, can: 0.04, bottle: 0.05, helmet: 0.16, cone: 0.13, pixel: 0.15, hose: 0.13, pipe: 0.05,
+  tile: 0.04, chair: 0.25, crate: 0.4, charge: 0.22,
+}
+
 const MASS: Record<ItemKind, number> = {
   cell: 2, charge: 25, crate: 8, can: 0.3, cone: 1, bottle: 0.5, chair: 4, pixel: 3, helmet: 1, pipe: 3, tile: 1.5, hose: 3,
 }
@@ -32,8 +49,8 @@ function Item({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null)
   const { camera } = useThree()
   const { rapier } = useRapier()
-  const st = useRef({ mode: -1, sendT: 0, still: 0, releasedAt: 0 })
-  const tmp = useMemo(() => ({ v: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3() }), [])
+  const st = useRef({ mode: -1, sendT: 0, still: 0, releasedAt: 0, placeAt: 0 })
+  const tmp = useMemo(() => ({ v: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), a: new THREE.Vector3() }), [])
 
   useEffect(() => {
     const g = group.current
@@ -60,6 +77,7 @@ function Item({ id }: { id: string }) {
     // pick up when the server confirms
     if (it.holder === me && hold.id !== id && now - st.current.releasedAt > 600) {
       hold.id = id
+      st.current.placeAt = 0
       useUi.setState({ holding: id })
       sfx.grab()
       if (it.kind === 'pixel') sfx.meow()
@@ -77,28 +95,43 @@ function Item({ id }: { id: string }) {
     if (holding) {
       rb.setGravityScale(0, true)
       const dir = tmp.v.set(0, 0, -1).applyQuaternion(camera.quaternion)
-      const reach = it.kind === 'charge' ? 1.3 : it.kind === 'crate' ? 1.5 : 1.15
-      const target = tmp.t.copy(camera.position).addScaledVector(dir, reach)
-      if (it.kind === 'charge') target.y -= 0.35
+      // carried at the side; when asked to put it down it first swings to the crosshair, so it lands
+      // (and snaps into sockets) exactly where the player is looking
+      if (hold.dropReq && !st.current.placeAt) st.current.placeAt = now
+      const placing = st.current.placeAt > 0
+      const target = tmp.t.copy(camera.position)
+      if (placing) {
+        target.addScaledVector(dir, PLACE_REACH[it.kind] ?? 1.15)
+        if (it.kind === 'charge') target.y -= 0.35
+      } else {
+        const [right, down, forward] = CARRY[it.kind]
+        target.add(tmp.a.set(right, -down, -forward).applyQuaternion(camera.quaternion))
+      }
       const p = rb.translation()
       const dx = target.x - p.x
       const dy = target.y - p.y
       const dz = target.z - p.z
       const gap = Math.hypot(dx, dy, dz)
-      const k = 16
+      const k = placing ? 22 : 16
       rb.setLinvel({ x: dx * k, y: dy * k, z: dz * k }, true)
       const av = rb.angvel()
       rb.setAngvel({ x: av.x * 0.7, y: av.y * 0.7 + (keys.has('KeyR') ? 4 : 0), z: av.z * 0.7 }, true)
+      hold.view.set(p.x, p.y, p.z).sub(camera.position).applyQuaternion(tmp.q.copy(camera.quaternion).invert())
+      hold.girth = GIRTH[it.kind]
 
-      const release = hold.dropReq || hold.throwReq || gap > 2.6
+      const placed = placing && (gap < 0.12 || now - st.current.placeAt > PLACE_MS)
+      const release = placed || hold.throwReq || gap > 2.6
       if (release) {
         const throwing = hold.throwReq && it.kind !== 'charge'
-        const v = throwing ? dir.clone().multiplyScalar(it.kind === 'crate' ? 7 : 12) : new THREE.Vector3(dx * 4, dy * 4, dz * 4)
+        // thrown from the hand, but aimed at what the crosshair points at
+        const aim = tmp.a.copy(camera.position).addScaledVector(dir, 9).sub(tmp.t.set(p.x, p.y, p.z)).normalize()
+        const v = throwing ? aim.clone().multiplyScalar(it.kind === 'crate' ? 7 : 12) : new THREE.Vector3(dx * 4, dy * 4, dz * 4)
         rb.setLinvel(v, true)
         rb.setGravityScale(1, true)
         hold.id = null
         hold.dropReq = false
         hold.throwReq = false
+        st.current.placeAt = 0
         st.current.releasedAt = now
         useUi.setState({ holding: null })
         const q = rb.rotation()

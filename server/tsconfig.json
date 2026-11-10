@@ -4,10 +4,20 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": "..",
+    "outDir": "dist",
+    "sourceMap": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src", "../shared"]
+  "include": [
+    "src",
+    "test",
+    "../shared"
+  ]
 }
