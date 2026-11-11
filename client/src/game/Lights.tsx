@@ -11,6 +11,19 @@ const BASE = {
   neonAcid: new THREE.Color('#e6ff3a').multiplyScalar(2.5),
   emergency: new THREE.Color('#ff1a1a').multiplyScalar(3),
   tunnelLamp: new THREE.Color('#ffb36b').multiplyScalar(2),
+  neonAmber: new THREE.Color('#ff9a1f').multiplyScalar(2.6),
+}
+// additive light cards: fake spill on the surfaces around a lamp
+const GLOW = {
+  glowCyan: new THREE.Color('#22f0ff').multiplyScalar(0.3),
+  glowPink: new THREE.Color('#ff2e88').multiplyScalar(0.32),
+  glowAcid: new THREE.Color('#e6ff3a').multiplyScalar(0.22),
+  glowAmber: new THREE.Color('#ff9a1f').multiplyScalar(0.34),
+  glowWarm: new THREE.Color('#ffb36b').multiplyScalar(0.34),
+  glowRed: new THREE.Color('#ff1a1a').multiplyScalar(0.42),
+  stripCyan: new THREE.Color('#22f0ff').multiplyScalar(0.26),
+  stripPink: new THREE.Color('#ff2e88').multiplyScalar(0.3),
+  stripAcid: new THREE.Color('#e6ff3a').multiplyScalar(0.2),
 }
 const OFF = new THREE.Color('#050506')
 const DIM_RED = new THREE.Color('#ff1a1a').multiplyScalar(0.25)
@@ -70,18 +83,34 @@ export function Lights() {
       light.intensity = blackout ? 0 : BRIGHT * l.i * pulse * flick.current[i] * (power || l.off !== '#000000' ? 1 : 0)
     })
 
-    // neon tubes: dead without power except emergency lamps
+    // neon tubes: dead without power except emergency lamps. Light cards (glow*/strip*) follow their tubes.
     const f = 0.8 + 0.2 * Math.sin(t * 50) * (Math.random() < 0.02 ? 1 : 0)
     const set = (key: keyof typeof BASE, on: boolean, mult = 1) => {
       const m = mats[key]
       if (blackout || !on) m.color.copy(key === 'emergency' && !blackout ? DIM_RED : OFF)
       else m.color.copy(BASE[key]).multiplyScalar(mult)
     }
+    const spill = (key: keyof typeof GLOW, on: boolean, mult = 1) => {
+      mats[key].color.copy(GLOW[key]).multiplyScalar(blackout || !on ? 0 : mult)
+    }
+    const pink = flick.current[1]
+    const lamp = flick.current[8]
+    const red = power ? 0.4 : 0.6 + 0.4 * Math.sin(t * 3)
     set('neonCyan', power, f)
-    set('neonPink', power, flick.current[1])
+    set('neonPink', power, pink)
     set('neonAcid', power, 1)
-    set('tunnelLamp', power, flick.current[8])
-    set('emergency', true, power ? 0.4 : 0.6 + 0.4 * Math.sin(t * 3))
+    set('neonAmber', power, flick.current[13])
+    set('tunnelLamp', power, lamp)
+    set('emergency', true, red)
+    spill('glowCyan', power, f)
+    spill('stripCyan', power, f)
+    spill('glowPink', power, pink)
+    spill('stripPink', power, pink)
+    spill('glowAcid', power, 1)
+    spill('stripAcid', power, 1)
+    spill('glowAmber', power, flick.current[13])
+    spill('glowWarm', power, lamp)
+    spill('glowRed', true, power ? red : red * 0.55)
   })
 
   return (

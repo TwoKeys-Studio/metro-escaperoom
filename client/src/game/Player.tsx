@@ -28,6 +28,24 @@ export function Player({ mode, spawn }: { mode: PlayerMode; spawn: Vec3 }) {
     pos: new THREE.Vector3(...spawn), lastFocus: '' as string, wet: false,
   })
   const ray = useMemo(() => new THREE.Raycaster(), [])
+  // Development only: lets a test script place and turn the player, since headless browsers have no
+  // pointer lock. See the walk tests in the session scratchpad; not present in production builds.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const w = window as unknown as { __player?: unknown }
+    w.__player = {
+      teleport: (p: Vec3, yaw?: number) => {
+        body.current?.setTranslation({ x: p[0], y: p[1], z: p[2] }, true)
+        body.current?.setNextKinematicTranslation({ x: p[0], y: p[1], z: p[2] })
+        s.current.vy = 0
+        if (yaw !== undefined) s.current.yaw = yaw
+      },
+      turn: (yaw: number) => { s.current.yaw = yaw },
+      at: () => { const t = body.current?.translation(); return t ? [t.x, t.y, t.z] : null },
+      grounded: () => s.current.grounded,
+    }
+    return () => { delete w.__player }
+  }, [])
   const ctrl = useRef<ReturnType<typeof world.createCharacterController> | null>(null)
   useEffect(() => {
     const c = world.createCharacterController(0.03)

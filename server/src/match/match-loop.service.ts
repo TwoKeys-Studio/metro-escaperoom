@@ -6,6 +6,7 @@ import { LINES } from '../game/dispatcher.lines.ts'
 import { PhaseService } from '../game/phase.service.ts'
 import { ACTIVE_PHASES, waterLevel } from '../game/rules.ts'
 import { ScareEventsService } from '../game/scare-events.service.ts'
+import { RatsService } from '../items/rats.service.ts'
 import { DetonatorPuzzle } from '../puzzles/detonator.puzzle.ts'
 import { RoomChannel } from '../rooms/room-channel.service.ts'
 import type { Room } from '../rooms/room.ts'
@@ -22,6 +23,7 @@ export class MatchLoopService {
     private readonly scares: ScareEventsService,
     private readonly detonator: DetonatorPuzzle,
     private readonly evacuation: EvacuationService,
+    private readonly rats: RatsService,
   ) {}
 
   ensureRunning(room: Room) {
@@ -49,6 +51,7 @@ export class MatchLoopService {
           this.scares.trigger(room)
         }
       }
+      if (ACTIVE_PHASES.includes(s.phase)) this.rats.tick(room, dt)
       if (s.phase === 'arm') this.detonator.tick(room, dt)
       if (s.phase === 'evac') this.evacuation.tickCountdown(room, dt)
       if (s.phase === 'escape') this.evacuation.tickEscape(room, dt)

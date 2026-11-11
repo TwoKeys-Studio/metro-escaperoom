@@ -1,10 +1,10 @@
 import { DIFFICULTIES, type Difficulty } from '../../../shared/level'
 
 const DESC: Record<Difficulty, string> = {
-  easy: '28 мин · подсказки и метки целей',
-  normal: '22 мин · 1 битая ячейка',
-  hard: '17 мин · садится фонарь · штрафы',
-  nightmare: '13 мин · 2 битые ячейки · тьма',
+  easy: '90 мин · подсказки и метки целей',
+  normal: '60 мин · 1 битая ячейка',
+  hard: '45 мин · садится фонарь · штрафы',
+  nightmare: '30 мин · 2 битые ячейки · тьма',
 }
 
 export function DifficultyPicker({ value, onChange, disabled, labelledBy }: {

@@ -3,6 +3,8 @@ import * as THREE from 'three'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Bloom, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
 
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+
 // Background for the menus: an endless ride through a dead neon tunnel.
 function Rings() {
   const group = useRef<THREE.Group>(null)
@@ -19,13 +21,14 @@ function Rings() {
   useFrame(({ clock, camera }, dt) => {
     const g = group.current
     if (!g) return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduce = reduceMotion.matches
     g.children.forEach((c, i) => {
       if (!reduce) c.position.z += dt * 6
       if (c.position.z > 4) c.position.z -= N * 4
       const m = (c as THREE.Mesh).material as THREE.MeshBasicMaterial
-      if (rings[i].broken) m.opacity = Math.random() < 0.08 ? 0.1 : 1
+      if (rings[i].broken) m.opacity = !reduce && Math.random() < 0.08 ? 0.1 : 1
     })
+    if (reduce) return // no ride, no flicker, no camera sway
     camera.position.x = Math.sin(clock.elapsedTime * 0.3) * 0.4
     camera.position.y = Math.cos(clock.elapsedTime * 0.21) * 0.25
     camera.lookAt(0, 0, -30)

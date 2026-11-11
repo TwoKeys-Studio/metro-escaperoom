@@ -3,8 +3,10 @@ import type { Msg } from '../connection/client.ts'
 import { GameGateway } from '../connection/game-gateway.decorator.ts'
 import { InGame, type ActivePlayer } from '../connection/sender.decorator.ts'
 import { ArmCodePuzzle } from './arm-code.puzzle.ts'
+import { BreakersPuzzle } from './breakers.puzzle.ts'
 import { DetonatorPuzzle } from './detonator.puzzle.ts'
 import { DoorCodePuzzle } from './door-code.puzzle.ts'
+import { GasPuzzle } from './gas.puzzle.ts'
 import { JunctionLeversPuzzle } from './junction-levers.puzzle.ts'
 import { PumpPuzzle } from './pump.puzzle.ts'
 import { TransferDoorPuzzle } from './transfer-door.puzzle.ts'
@@ -19,6 +21,8 @@ export class PuzzlesGateway {
     private readonly transferDoor: TransferDoorPuzzle,
     private readonly pump: PumpPuzzle,
     private readonly detonator: DetonatorPuzzle,
+    private readonly breakers: BreakersPuzzle,
+    private readonly gas: GasPuzzle,
   ) {}
 
   @SubscribeMessage('keypad')
@@ -41,6 +45,16 @@ export class PuzzlesGateway {
   @SubscribeMessage('valve')
   valve(@InGame() p: ActivePlayer | null, @MessageBody() msg: Msg<'valve'>): void {
     if (p) this.pump.turnValve(p.room, p.client, msg.index)
+  }
+
+  @SubscribeMessage('breaker')
+  breaker(@InGame() p: ActivePlayer | null, @MessageBody() msg: Msg<'breaker'>): void {
+    if (p) this.breakers.toggle(p.room, p.client, msg.index)
+  }
+
+  @SubscribeMessage('dial')
+  dial(@InGame() p: ActivePlayer | null, @MessageBody() msg: Msg<'dial'>): void {
+    if (p) this.gas.turnDial(p.room, msg.index)
   }
 
   @SubscribeMessage('hold')

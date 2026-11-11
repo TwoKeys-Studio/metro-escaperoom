@@ -12,7 +12,10 @@ export type Phase =
   | 'won'
   | 'lost'
 
-export type EventType = 'blackout' | 'ghostTrain' | 'quake' | 'whisper' | 'shadow' | 'glitch' | 'scream'
+export type EventType =
+  | 'blackout' | 'ghostTrain' | 'quake' | 'whisper' | 'shadow' | 'glitch' | 'scream'
+  // a woman in white crossing ahead, a head peeking round a corner, laughter in the dark
+  | 'ghostWoman' | 'peeker' | 'laugh'
 
 export interface PlayerInfo {
   id: string
@@ -72,6 +75,14 @@ export interface GameState {
   armCode: string
   mosaicDone: boolean
   armCodeOk: boolean
+  // second floor: breakers unlock the storage room; the gas rig feeds the detonator
+  breakers: boolean[]
+  breakerTarget: boolean[]
+  storageOpen: boolean
+  gasLoaded: number // cylinders in the rig
+  gasDials: number[] // regulator positions, 0..GAS_DIAL_STEPS-1
+  gasTarget: number[]
+  gasOk: boolean
   // hard easter eggs (answers are checked on the server)
   caesar: string
   poem: number
@@ -109,6 +120,8 @@ export type ClientMsg =
   | { t: 'valve'; index: number }
   | { t: 'tlever'; index: number }
   | { t: 'lever'; index: number }
+  | { t: 'breaker'; index: number }
+  | { t: 'dial'; index: number }
   | { t: 'hold'; console: 'a' | 'b'; down: boolean }
   | { t: 'vending' }
   | { t: 'egg'; id: string }

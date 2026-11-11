@@ -2,8 +2,8 @@
 // Plays a full solo game, drives the admin panel and checks lobby rules, then prints a transcript of
 // checkpoints. Run against a live server:  node server/test/playthrough.ts   (PORT, ADMIN_PASSWORD env)
 import {
-  CAESAR_SHIFT, CHARGE_SOCKET, DIFFICULTIES, HOSE_SOCKETS, MOSAIC_SOCKETS, POEMS, TLEVER_COUNT, VENDING_POS,
-  caesar, powerSockets, type Vec3,
+  CAESAR_SHIFT, CHARGE_SOCKET, DIFFICULTIES, F2_PROPS, GAS_DIAL_STEPS, GAS_SOCKETS, GAS_SPOTS, HOSE_SOCKETS, MOSAIC_SOCKETS,
+  POEMS, PROPS, RAT_SPOTS, TLEVER_COUNT, VENDING_POS, caesar, powerSockets, type Vec3,
 } from '../../shared/level.ts'
 import type { AdminCmd, ClientMsg, GameState, ItemState, Phase, ServerMsg } from '../../shared/protocol.ts'
 
@@ -143,8 +143,9 @@ async function soloPlaythrough(admin: Admin) {
   const s = () => bot.state!
   const cfg = DIFFICULTIES.normal
   if (s().totalTime !== cfg.minutes * 60) throw new Error('wrong total time')
-  if (bot.items.size !== cfg.cells + cfg.fakeCells + 1 + 9 + 3 + 12) throw new Error(`unexpected item count ${bot.items.size}`)
-  ok('items spawned: cells, charge, 9 tiles, 3 hoses, props')
+  const expected = cfg.cells + cfg.fakeCells + 1 + 9 + 3 + PROPS.length + F2_PROPS.length + GAS_SPOTS.length + RAT_SPOTS.length
+  if (bot.items.size !== expected) throw new Error(`unexpected item count ${bot.items.size}, expected ${expected}`)
+  ok('items spawned: cells, charge, 9 tiles, 3 hoses, gas cylinders, rats, props on both floors')
 
   let from = bot.mark()
   await bot.until('phase power', () => s().phase === 'power', 10000)
@@ -309,12 +310,47 @@ async function soloPlaythrough(admin: Admin) {
   if (s().phase !== 'charge') throw new Error('phase moved before the charge was placed')
   ok('junction levers match the schematic')
 
+  // ---- second floor: rats, breakers → storage room, gas cylinders + regulators
+  const rat = bot.items.get('rat0')!
+  const ratStart = [...rat.p]
+  await bot.got('a rat runs', 0, (m) => m.t === 'tick' && m.items.some((it) => it.id.startsWith('rat')), 12000)
+  await bot.carry('rat0', [ratStart[0] + 1, ratStart[1] + 1, ratStart[2]])
+  ok('rats scurry on their own and can be picked up')
+
+  if (s().storageOpen) throw new Error('storage room open before the breakers were set')
+  const firstWrong = s().breakerTarget.findIndex((v) => !v)
+  bot.send({ t: 'breaker', index: firstWrong })
+  await bot.until('wrong breaker up', () => s().breakers[firstWrong])
+  if (s().storageOpen) throw new Error('storage opened on a wrong pattern')
+  bot.send({ t: 'breaker', index: firstWrong })
+  from = bot.mark()
+  for (let i = 0; i < s().breakerTarget.length; i++) if (s().breakerTarget[i]) bot.send({ t: 'breaker', index: i })
+  await bot.until('storage open', () => s().storageOpen)
+  await bot.said(from, 'Камера хранения разблокирована')
+  ok('breakers: wrong pattern does nothing, the hidden pattern unlocks the storage room')
+
+  from = bot.mark()
+  for (let i = 0; i < GAS_SOCKETS.length; i++) await bot.carry(`gas${i}`, GAS_SOCKETS[i].pos)
+  await bot.until('cylinders loaded', () => s().gasLoaded === GAS_SOCKETS.length)
+  await bot.said(from, 'Все баллоны в рампе')
+  if (s().gasOk) throw new Error('gas ok before the regulators were set')
+  for (let i = 0; i < s().gasTarget.length; i++) for (let k = 0; k < s().gasTarget[i]; k++) bot.send({ t: 'dial', index: i })
+  await bot.until('gas ok', () => s().gasOk)
+  await bot.said(from, 'Давление в норме')
+  // a solved rig ignores further clicks
+  bot.send({ t: 'dial', index: 0 })
+  bot.send({ t: 'chat', text: 'газ' })
+  await bot.got('chat after dial', from, (m) => m.t === 'chat' && m.text === 'газ')
+  if (s().gasDials[0] !== s().gasTarget[0] || s().gasDials[0] >= GAS_DIAL_STEPS) throw new Error('regulator moved after the rig was solved')
+  if (s().phase !== 'charge') throw new Error('phase moved before the charge was placed')
+  ok('gas rig: 3 cylinders + regulators at the hidden pressures → gas ok')
+
   from = bot.mark()
   await bot.carry('charge', CHARGE_SOCKET.pos)
   await bot.until('phase arm', () => s().phase === 'arm' && s().chargePlaced)
   await bot.said(from, 'Заряд установлен')
   await bot.said(from, 'Вы один')
-  ok('charge placed → arm (single operator line)')
+  ok('charge placed with levers, arm code and gas ready → arm')
 
   // ---- admin tools on a live room
   const room = bot.roomId
@@ -338,6 +374,10 @@ async function soloPlaythrough(admin: Admin) {
   await bot.until('eggs on', () => s().eggs)
   admin.cmd(room, { c: 'event', type: 'scream' })
   await bot.got('scream', from, (m) => m.t === 'event' && m.type === 'scream')
+  for (const type of ['ghostWoman', 'peeker', 'laugh'] as const) {
+    admin.cmd(room, { c: 'event', type })
+    await bot.got(type, from, (m) => m.t === 'event' && m.type === type && m.target === bot.id)
+  }
   ok('admin: say, addTime, pause, eggs toggle, event')
 
   // ---- detonator → evac → escape → won

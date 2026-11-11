@@ -3,8 +3,9 @@ import { PhaseService } from '../game/phase.service.ts'
 import type { Room } from '../rooms/room.ts'
 
 /**
- * Phase `charge` needs three things in any order: the charge at the collapse, the junction levers
- * matching the schematic, and the arming code. Each of those puzzles calls `check` after it changes.
+ * Phase `charge` needs four things in any order: the charge at the collapse, the junction levers
+ * matching the schematic, the arming code, and gas pressure from the rig on the second floor. Each of
+ * those puzzles calls `check` after it changes.
  */
 @Injectable()
 export class ChargeStage {
@@ -12,6 +13,6 @@ export class ChargeStage {
 
   check(room: Room) {
     const s = room.state!
-    if (s.phase === 'charge' && s.chargePlaced && s.leversOk && s.armCodeOk) this.phase.setPhase(room, 'arm')
+    if (s.phase === 'charge' && s.chargePlaced && s.leversOk && s.armCodeOk && s.gasOk) this.phase.setPhase(room, 'arm')
   }
 }

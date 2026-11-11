@@ -1,87 +1,142 @@
-.hud { position: fixed; inset: 0; pointer-events: none; font-size: 14px; z-index: 5; }
-.hud .panel, .hud button, .hud input, .hud form, .hud a { pointer-events: auto; }
-.hud-loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--ink-muted); }
+/* In-game HUD. Lives on the screen edges, never in the crosshair column; tokens from /DESIGN.md.
+   Nothing here takes pointer events except real controls and the modal overlays. */
+.hud { --inset: var(--s4); position: fixed; inset: 0; pointer-events: none; font-size: var(--t14); line-height: var(--lh-ui); z-index: 5; }
+.hud button, .hud input, .hud form, .hud a { pointer-events: auto; }
+.hud kbd { line-height: 18px; }
 
-.hud-timer { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 220px; }
-.hud-timer-label { font-size: 11px; letter-spacing: .2em; color: var(--ink-muted); text-shadow: 0 1px 4px #000; }
-.hud-timer-value { font-family: var(--font-display); font-weight: 800; font-size: 44px; line-height: 1.05; color: var(--acid); text-shadow: 0 0 18px #e6ff3a66, 0 2px 6px #000; }
-.hud-timer-value.danger { color: var(--pink); text-shadow: 0 0 18px #ff2e8888; animation: pulse 1s infinite; }
-.hud-water { height: 4px; margin-top: 6px; background: #0b1a1d; border: 1px solid var(--line); }
-.hud-water div { height: 100%; background: linear-gradient(90deg, #0f6f7a, var(--cyan)); transition: width .5s; }
+/* ---------- top centre: timer, pause, countdowns ---------- */
+.hud-top { position: absolute; top: var(--inset); left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: var(--s2); width: max-content; max-width: min(520px, calc(100vw - 2 * (min(360px, 30vw) + 2 * var(--inset)))); text-align: center; }
+.hud-timer { min-width: 232px; padding: var(--s2) var(--s4) 0; background: var(--scrim); }
+.hud-timer-label { font-size: var(--t12); letter-spacing: var(--tr-label); text-transform: uppercase; color: var(--ink-muted); white-space: nowrap; }
+.hud-timer-value { font-family: var(--font-display); font-weight: 800; font-size: var(--t44); line-height: var(--lh-tight); font-variant-numeric: tabular-nums; color: var(--acid); text-shadow: 0 0 18px color-mix(in srgb, var(--acid) 40%, transparent), 0 2px 6px #000; }
+.hud-timer-value.danger { color: var(--pink); text-shadow: 0 0 18px color-mix(in srgb, var(--pink) 53%, transparent), 0 2px 6px #000; animation: pulse 1s infinite; }
+.hud-water-line { display: flex; justify-content: space-between; margin-top: var(--s1); font-size: var(--t12); letter-spacing: var(--tr-label); text-transform: uppercase; color: var(--ink-muted); }
+.hud-water-line span:last-child { color: var(--cyan); }
+.hud-water { height: 4px; margin: var(--s1) calc(var(--s4) * -1) 0; background: var(--line); }
+.hud-water div { height: 100%; background: linear-gradient(90deg, var(--water), var(--cyan)); transition: width .5s var(--ease); }
 @keyframes pulse { 50% { opacity: .55; } }
 
-.hud-obj { position: absolute; top: 16px; left: 16px; max-width: 360px; padding: 12px 16px !important; background: #06070acc !important; }
-.hud-obj ol { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
-.hud-obj li { font-size: 13px; line-height: 1.4; }
-.hud-obj li.done { color: var(--ink-faint); text-decoration: line-through; }
-.hud-obj li.now { color: var(--ink); }
-.hud-obj li.now span { color: var(--acid); }
-.hud-obj li.next { color: var(--ink-muted); }
-.hud-eggs { margin-top: 6px; font-size: 12px; }
-.hud-side { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 2px; font-size: 12px; color: var(--ink-muted); }
-.hud-side .done { color: var(--ok); }
-.kiosk { width: min(520px, 92vw); }
-.kiosk-list { margin: 0 0 14px; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
-.kiosk-list .ok { color: var(--ok); text-decoration: line-through; }
+.hud-paused { background: var(--acid); color: var(--bg); padding: var(--s1) var(--s3); font-size: var(--t12); font-weight: 700; letter-spacing: var(--tr-label); text-transform: uppercase; }
+.hud-note { background: var(--scrim); border-left: 3px solid var(--pink); padding: var(--s2) var(--s3); color: var(--ink); text-align: left; text-shadow: 0 1px 2px #000; }
+.hud-evac { padding: var(--s2) var(--s4); background: var(--scrim); color: var(--pink); text-shadow: 0 0 12px color-mix(in srgb, var(--pink) 53%, transparent); letter-spacing: var(--tr-label); text-transform: uppercase; font-size: var(--t12); font-weight: 700; }
+.hud-evac strong { display: block; font-family: var(--font-display); font-weight: 800; font-size: var(--t72); line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; min-width: 2.4ch; animation: pulse .5s infinite; }
+.hud-arm { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); background: var(--scrim); font-family: var(--font-display); font-weight: 600; font-size: var(--t20); line-height: 1; color: var(--ink-muted); }
+.hud-arm .ok { color: var(--ok); text-shadow: 0 0 10px var(--ok); }
+.hud-arm-bar { width: 240px; max-width: 30vw; height: 8px; border: 1px solid var(--line-strong); background: var(--bg); }
+.hud-arm-bar div { height: 100%; background: var(--pink); box-shadow: 0 0 12px var(--pink); }
 
-.hud-feed { position: absolute; left: 16px; bottom: 16px; width: min(560px, 60vw); display: grid; gap: 6px; }
-.hud-say { background: #06070acc; border-left: 3px solid var(--pink); padding: 6px 12px; font-size: 13px; line-height: 1.45; color: #ffd0e3; animation: say-in .5s steps(6); }
-.hud-say.admin { border-left-color: var(--acid); color: #f4ffc4; }
+/* ---------- top left: objectives ---------- */
+.hud .hud-obj { position: absolute; top: var(--inset); left: var(--inset); width: min(360px, 30vw); padding: var(--s3) var(--s4); }
+.hud-obj ol { list-style: none; margin: var(--s2) 0 0; padding: 0; display: grid; gap: var(--s1); }
+.hud-obj li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: var(--s2); font-size: var(--t12); line-height: var(--lh-ui); color: var(--ink-muted); }
+.hud-obj li > span:first-child { font-size: 10px; line-height: 17px; }
+.hud-obj li.done { text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+.hud-obj li.done > span:first-child { color: var(--ok); }
+.hud-obj li.now { font-size: var(--t14); color: var(--ink); padding: var(--s1) 0; }
+.hud-obj li.now > span:first-child { color: var(--acid); line-height: 20px; }
+.hud-eggs { margin-top: var(--s2); font-size: var(--t12); color: var(--ink-muted); }
+.hud-side { margin-top: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line); display: grid; gap: 2px; font-size: var(--t12); color: var(--ink-muted); }
+.hud-side .done { color: var(--ok); }
+
+/* ---------- top right: flashlight, spectator ---------- */
+.hud-battery { position: absolute; right: var(--inset); top: var(--inset); display: flex; align-items: center; gap: var(--s2); background: var(--scrim); padding: var(--s1) var(--s2); font-size: var(--t12); letter-spacing: var(--tr-label); text-transform: uppercase; color: var(--ink-muted); white-space: nowrap; }
+.hud-battery.on { color: var(--ink); }
+.hud-battery b { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+.hud-battery-bar { width: 48px; height: 6px; border: 1px solid var(--line-strong); background: var(--bg); }
+.hud-battery-bar i { display: block; height: 100%; background: var(--acid); transition: width .5s var(--ease); }
+.hud-battery.low { color: var(--pink); animation: pulse .8s infinite; }
+.hud-battery.low .hud-battery-bar i { background: var(--pink); }
+.hud-spectator { position: absolute; top: var(--inset); right: var(--inset); display: flex; gap: var(--s2); align-items: center; }
+.hud-spectator .tag { background: var(--scrim); min-height: var(--control-sm); padding: 0 var(--s3); }
+
+/* ---------- bottom left: dispatcher feed ---------- */
+.hud-feed { position: absolute; left: var(--inset); bottom: var(--inset); width: min(520px, 42vw); display: grid; gap: var(--s2); }
+.hud-say { background: var(--scrim); border-left: 3px solid var(--pink); padding: var(--s2) var(--s3); font-size: var(--t14); line-height: var(--lh-ui); color: color-mix(in srgb, var(--pink) 18%, var(--ink)); text-shadow: 0 1px 2px #000; overflow-wrap: anywhere; animation: say-in .5s steps(6); }
+.hud-say.admin { border-left-color: var(--acid); color: color-mix(in srgb, var(--acid) 22%, var(--ink)); }
 @keyframes say-in { 0% { clip-path: inset(0 100% 0 0); filter: blur(2px); } 100% { clip-path: inset(0 0 0 0); } }
 
-.hud-chat-log { position: absolute; right: 16px; bottom: 76px; width: min(360px, 40vw); display: grid; gap: 4px; text-align: right; }
-.hud-chat-log div { background: #06070aaa; padding: 4px 10px; justify-self: end; }
-.hud-chat-input { position: absolute; right: 16px; bottom: 16px; width: min(360px, 90vw); display: grid; gap: 4px; }
-.hud-chat-input label { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted); }
+/* ---------- bottom right: chat ---------- */
+.hud-chat-log { position: absolute; right: var(--inset); bottom: calc(var(--inset) + 20px + var(--s3)); width: min(360px, 36vw); display: grid; gap: var(--s1); justify-items: end; text-align: right; overflow-wrap: anywhere; }
+.hud:has(.hud-chat-input) .hud-chat-log { bottom: calc(var(--inset) + 108px); }
+.hud-chat-log div { background: var(--scrim); padding: var(--s1) var(--s2); text-shadow: 0 1px 2px #000; }
+.hud-chat-input { position: absolute; right: var(--inset); bottom: var(--inset); width: min(360px, 36vw); display: grid; gap: var(--s1); padding: var(--s2); background: var(--scrim); }
+.hud-chat-input label { font-size: var(--t12); letter-spacing: var(--tr-label); text-transform: uppercase; color: var(--ink-muted); }
+.hud-chat-input .input { font-size: var(--t14); }
+.hud-chat-keys, .hud-legend { display: flex; gap: var(--s3); font-size: var(--t12); line-height: 20px; color: var(--ink-muted); }
+.hud-chat-keys { justify-content: flex-end; }
+.hud-legend { position: absolute; right: var(--inset); bottom: var(--inset); opacity: .7; text-shadow: 0 1px 2px #000; }
 
+/* ---------- objective markers ---------- */
 .markers { position: fixed; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
-.marker { position: absolute; left: 0; top: 0; display: grid; justify-items: center; gap: 2px; white-space: nowrap; font: 700 12px/1.2 var(--font-mono); color: #fff; text-shadow: 0 1px 3px #000, 0 0 2px #000; --mc: var(--acid); will-change: transform; }
-.marker em { display: none; font-style: normal; color: var(--mc); font-size: 18px; line-height: 1; text-shadow: 0 0 8px var(--mc); }
+.marker { position: absolute; left: 0; top: 0; display: grid; justify-items: center; gap: 2px; white-space: nowrap; font-family: var(--font-mono); font-size: var(--t12); font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--ink); text-shadow: 0 1px 3px #000, 0 0 2px #000; --mc: var(--acid); will-change: transform; }
+.marker i { width: 12px; height: 12px; margin-bottom: var(--s1); border: 2px solid var(--mc); transform: rotate(45deg); box-shadow: 0 0 10px var(--mc); background: var(--scrim); }
+.marker em { display: none; font-style: normal; color: var(--mc); font-size: var(--t16); line-height: 1; text-shadow: 0 0 8px var(--mc); }
+.marker b { padding: 0 var(--s1); background: var(--scrim); }
+.marker span { font-weight: 400; color: var(--mc); }
 .marker.edge i { display: none; }
 .marker.edge em { display: block; }
 .marker.edge { opacity: .85; }
-.marker i { width: 14px; height: 14px; border: 2px solid var(--mc); transform: rotate(45deg); box-shadow: 0 0 10px var(--mc); background: #0006; }
-.marker span { font-weight: 400; color: var(--mc); }
-.hud-cross { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #e6f1f4cc; box-shadow: 0 0 0 1px #000a; transition: transform var(--fast), background var(--fast); }
+
+/* ---------- centre: crosshair and its prompt ---------- */
+.hud-cross { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 80%, transparent); box-shadow: 0 0 0 1px #000a; transition: transform var(--fast) var(--ease), background var(--fast) var(--ease), box-shadow var(--fast) var(--ease); }
 .hud-cross.on { transform: scale(2.2); background: transparent; box-shadow: 0 0 0 1.5px var(--cyan), 0 0 10px var(--cyan); }
-.hud-hint { position: absolute; left: 50%; top: calc(50% + 28px); transform: translateX(-50%); background: #06070acc; padding: 6px 12px; white-space: nowrap; }
-kbd { display: inline-block; min-width: 22px; padding: 0 6px; border: 1px solid var(--line-strong); background: var(--surface-2); font: 700 12px/20px var(--font-mono); text-align: center; color: var(--cyan); }
+.hud-hint { position: absolute; left: 50%; top: calc(50% + 28px); transform: translateX(-50%); max-width: calc(100vw - 2 * var(--inset)); background: var(--scrim); padding: var(--s1) var(--s3); white-space: nowrap; text-shadow: 0 1px 2px #000; }
 
-.hud-battery { position: absolute; right: 16px; top: 16px; background: #06070acc; padding: 6px 10px; font-size: 12px; letter-spacing: .1em; }
-.hud-battery.low { color: var(--pink); animation: pulse .8s infinite; }
+/* ---------- overlays ---------- */
+.hud .hud-scores { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(480px, 92vw); max-height: calc(100vh - 2 * var(--s7)); overflow: hidden; }
+.hud-scores .h2 { margin: var(--s1) 0 var(--s2); overflow-wrap: anywhere; }
+.hud-player { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.hud-player i { width: 8px; height: 8px; background: var(--c); box-shadow: 0 0 8px var(--c); flex: none; }
 
-.hud-evac { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); text-align: center; color: var(--pink); text-shadow: 0 0 12px #ff2e8888; letter-spacing: .14em; font-size: 12px; }
-.hud-evac strong { display: block; font-family: var(--font-display); font-size: 72px; line-height: 1; animation: pulse .5s infinite; }
-.hud-arm { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 20px; color: var(--ink-muted); }
-.hud-arm .ok { color: var(--ok); text-shadow: 0 0 10px var(--ok); }
-.hud-arm-bar { width: 260px; height: 10px; border: 1px solid var(--line-strong); background: #06070acc; }
-.hud-arm-bar div { height: 100%; background: var(--pink); box-shadow: 0 0 12px var(--pink); }
+.hud-modal { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--s4); overflow-y: auto; background: var(--scrim-modal); pointer-events: auto; overscroll-behavior: contain; animation: modal-in var(--base) var(--ease); }
+.hud-modal > .panel { animation: panel-in var(--base) var(--ease); }
+@keyframes modal-in { from { opacity: 0; } }
+@keyframes panel-in { from { transform: translateY(8px); } }
 
-.hud-center-note { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); background: #06070acc; padding: 10px 16px; }
-.hud-paused { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); color: var(--acid); background: #06070acc; padding: 6px 14px; letter-spacing: .14em; }
-.hud-spectator { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; align-items: center; }
+.keypad { width: min(320px, 92vw); }
+.keypad-screen { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s1); margin: var(--s2) 0 var(--s3); }
+.keypad-screen span { display: grid; place-items: center; height: 56px; background: var(--bg); border: 1px solid var(--line-strong); font-family: var(--font-display); font-weight: 600; font-size: var(--t28); line-height: 1; color: var(--ink-faint); }
+.keypad-screen span.on { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 40%, transparent); text-shadow: 0 0 12px var(--cyan); }
+.keypad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s1); margin-bottom: var(--s2); }
+.keypad-grid .btn { padding: 0; font-size: var(--t20); }
+.keypad-help { margin-top: var(--s3); font-size: var(--t12); line-height: 20px; color: var(--ink-muted); text-align: center; }
 
-.hud-scores { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(480px, 92vw); }
-.hud-modal { position: absolute; inset: 0; display: grid; place-items: center; background: #000a; pointer-events: auto; overscroll-behavior: contain; }
-.keypad { width: 300px; }
-.keypad-screen { font-family: var(--font-display); font-size: 40px; letter-spacing: .3em; text-align: center; color: var(--cyan); background: #031014; border: 1px solid var(--line-strong); margin: 8px 0 12px; padding: 6px 0; text-shadow: 0 0 12px var(--cyan); }
-.keypad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
-.keypad-grid .btn { padding: 0; font-size: 18px; }
+.kiosk { width: min(520px, 92vw); }
+.kiosk-lead { margin: var(--s2) 0 var(--s3); color: var(--ink-soft); }
+.kiosk-list { list-style: none; margin: 0 0 var(--s4); padding: 0; display: grid; gap: var(--s2); }
+.kiosk-list li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: var(--s2); }
+.kiosk-list li::before { content: '□'; font-size: 10px; line-height: 20px; color: var(--acid); }
+.kiosk-list .ok { color: var(--ok); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.kiosk-list .ok::before { content: '■'; color: var(--ok); }
+.kiosk .field-label { display: block; margin-bottom: var(--s1); }
+.kiosk-actions { margin-top: var(--s3); flex-wrap: wrap; }
 
-.hud-click { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(#0008, #000c); }
-.hud-click .panel { text-align: center; max-width: 520px; pointer-events: none; } /* clicks fall through to the canvas */
-.hud-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; font-size: 13px; color: var(--ink-muted); margin-top: 12px; }
+.hud-click { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--s4); background: radial-gradient(var(--scrim), var(--scrim-modal)); }
+.hud .hud-click .panel { width: min(560px, 100%); text-align: center; pointer-events: none; } /* clicks fall through to the canvas */
+.hud-click-title { font-size: var(--t28); margin-top: var(--s2); }
+.hud-click-cta { margin-top: var(--s2); color: var(--cyan); font-weight: 700; letter-spacing: var(--tr-btn); text-transform: uppercase; }
+.hud-keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s2) var(--s4); margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--line); font-size: var(--t12); line-height: 20px; color: var(--ink-muted); text-align: left; }
+.hud-keys span { white-space: nowrap; }
 
 .end { width: min(520px, 92vw); }
-.end-title { font-size: 36px; margin: 16px 0 8px; }
+.end .eyebrow { margin-top: var(--s4); }
+.end-title { font-size: var(--t28); margin: var(--s2) 0; }
+.end-lead { color: var(--ink-soft); margin-bottom: var(--s2); }
+.end .list { margin-bottom: var(--s4); }
+.end .list span { color: var(--ink-muted); }
+.end .btn + .btn { margin-top: var(--s2); }
+.end-wait { color: var(--ink-muted); margin-bottom: var(--s3); }
 
-.fx-underwater { position: absolute; inset: 0; background: radial-gradient(#0f6f7a55, #021216dd); backdrop-filter: blur(3px); }
+/* ---------- full-screen effects (story moments; colours are light, not chrome) ---------- */
+.fx-underwater { position: absolute; inset: 0; background: radial-gradient(color-mix(in srgb, var(--water) 33%, transparent), #021216dd); backdrop-filter: blur(3px); }
 .fx-shock { position: absolute; inset: 0; background: #bff7ff; mix-blend-mode: screen; opacity: .35; animation: shock .12s steps(2) infinite; }
 @keyframes shock { 50% { opacity: .05; } }
 .fx-blackout { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, transparent 20%, #000c 70%); }
 .fx-flash { position: absolute; inset: 0; background: #ffb36b; opacity: .5; mix-blend-mode: screen; }
+@media (prefers-reduced-motion: reduce) { .fx-shock { opacity: .12; } }
 
-@media (max-width: 720px) {
-  .hud-obj { max-width: 60vw; }
-  .hud-timer-value { font-size: 32px; }
+@media (max-width: 900px), (max-height: 600px) {
+  .hud-timer { min-width: 200px; }
+  .hud-timer-value { font-size: var(--t28); }
+  .hud-evac strong { font-size: var(--t44); }
 }

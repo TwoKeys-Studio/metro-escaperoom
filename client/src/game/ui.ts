@@ -9,6 +9,8 @@ export type Interact =
   | { kind: 'valve'; index: number; label: string }
   | { kind: 'kiosk'; label: string }
   | { kind: 'lever'; index: number; label: string }
+  | { kind: 'breaker'; index: number; label: string }
+  | { kind: 'dial'; index: number; label: string }
   | { kind: 'console'; which: 'a' | 'b'; label: string }
   | { kind: 'vending'; label: string }
   | { kind: 'read'; label: string }
@@ -70,4 +72,11 @@ export const itemLabels: Record<string, string> = {
   pipe: 'обрезок трубы',
   tile: 'плитку мозаики',
   hose: 'шланг',
+  gas: 'газовый баллон',
+  rat: 'крысу',
+  doll: 'куклу',
+  skull: 'череп',
+  book: 'журнал дежурств',
+  mask: 'противогаз',
+  jar: 'банку с чем-то',
 }

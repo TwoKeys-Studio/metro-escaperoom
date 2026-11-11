@@ -30,7 +30,7 @@ function Watch() {
     if (admin && id) send({ t: 'adminWatch', roomId: id })
   }, [admin, id])
   if (!admin) return <Navigate to="/admin" replace />
-  if (!game) return <div className="page muted">Ожидание данных комнаты…</div>
+  if (!game) return <div className="loading" role="status">Ожидание данных комнаты…</div>
   return <Game spectator />
 }
 
@@ -49,7 +49,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/room" element={<Lobby />} />
-        <Route path="/play" element={game ? <Game /> : <div className="page muted">Спуск на станцию…</div>} />
+        <Route path="/play" element={game ? <Game /> : <div className="loading" role="status">Спуск на станцию…</div>} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/watch/:id" element={<Watch />} />
         <Route path="*" element={<Navigate to="/" replace />} />

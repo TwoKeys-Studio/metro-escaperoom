@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { BRANCH, CAESAR_SHIFT, CHARGE_SOCKET, DIFFICULTIES, ELEVATOR, HALL, MAINT, PIT, POEMS, PUMP, TRANSFER, VALVE_SYMBOLS, caesar, type Difficulty } from '../../../shared/level'
 import type { AdminCmd, EventType } from '../../../shared/protocol'
 import { live, send, useNet } from '../net'
@@ -17,6 +17,9 @@ const EVENTS: { type: EventType; label: string }[] = [
   { type: 'whisper', label: 'Шёпот' },
   { type: 'glitch', label: 'Глитч' },
   { type: 'scream', label: 'Крик' },
+  { type: 'ghostWoman', label: 'Женщина в белом' },
+  { type: 'peeker', label: 'Голова из-за угла' },
+  { type: 'laugh', label: 'Смех' },
 ]
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
@@ -26,21 +29,23 @@ export function Admin() {
   const [pass, setPass] = useState('')
   if (!admin) {
     return (
-      <div className="page">
-        <div className="wrap admin-login">
+      <div className="page admin-login-page">
+        <main className="wrap admin-login">
           <header className="topbar">
-            <Link to="/" className="logo">НЕОН<b>-17</b></Link>
-            <span className={`tag ${connected ? 'tag-ok' : 'tag-pink'}`}>{connected ? 'Сервер на связи' : 'Нет связи'}</span>
+            <Link to="/" className="logo" translate="no">НЕОН<b>-17</b></Link>
+            <span className={`tag tag-dot ${connected ? 'tag-ok' : 'tag-pink'}`} role="status">{connected ? 'Сервер на связи' : 'Нет связи'}</span>
           </header>
           <form className="panel" onSubmit={(e) => { e.preventDefault(); send({ t: 'adminAuth', password: pass }) }}>
+            <div className="eyebrow">Служебный вход</div>
             <h1 className="h2">Пульт оператора</h1>
+            <p className="field-help">Отсюда ведущий следит за комнатами, двигает таймер и пугает игроков.</p>
             <div className="field">
               <label htmlFor="ap">Пароль администратора</label>
-              <input id="ap" type="password" className="input" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="current-password" />
+              <input id="ap" name="password" type="password" className="input" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="current-password" spellCheck={false} />
             </div>
             <button className="btn btn-primary btn-block">Войти</button>
           </form>
-        </div>
+        </main>
       </div>
     )
   }
@@ -72,28 +77,33 @@ function Dashboard() {
       <div className="wrap admin-wrap">
         <header className="topbar">
           <Link to="/" className="logo" translate="no">НЕОН<b>-17</b> <span className="faint">/ оператор</span></Link>
-          <div className="admin-stats">
-            <span><b>{rooms.length}</b> комнат</span>
-            <span><b>{live_}</b> в игре</span>
-            <span><b>{totalPlayers}</b> игроков</span>
-          </div>
+          <dl className="admin-stats">
+            <div><dt>комнат</dt><dd>{rooms.length}</dd></div>
+            <div><dt>в игре</dt><dd>{live_}</dd></div>
+            <div><dt>игроков</dt><dd>{totalPlayers}</dd></div>
+          </dl>
         </header>
         <div className="admin-grid">
           <nav className="panel admin-rooms" aria-label="Комнаты">
             <h2 className="h2">Комнаты</h2>
-            {rooms.length === 0 && <p className="muted">Нет активных комнат. Они появятся, как только игроки создадут лобби.</p>}
+            {rooms.length === 0 && <p className="empty">Нет активных комнат. Они появятся, как только игроки создадут лобби.</p>}
             <ul className="list">
               {rooms.map((r) => (
                 <li key={r.id}>
                   <button className={`admin-room ${r.id === id ? 'on' : ''}`} onClick={() => setSel(r.id)} aria-current={r.id === id}>
-                    <span>{r.name}</span>
-                    <span className="faint">{r.id} · {r.list.length} игр. · {PHASES[r.phase]}{r.state && r.phase !== 'lobby' ? ` · ${fmt(r.state.timeLeft)}` : ''}</span>
+                    <span className="truncate">{r.name}</span>
+                    <span className="meta">{r.id} · {r.list.length} игр. · {PHASES[r.phase]}{r.state && r.phase !== 'lobby' ? <> · <b>{fmt(r.state.timeLeft)}</b></> : ''}</span>
                   </button>
                 </li>
               ))}
             </ul>
           </nav>
-          {selected ? <RoomControl key={selected.id} roomId={selected.id} /> : <div />}
+          {selected ? <RoomControl key={selected.id} roomId={selected.id} /> : (
+            <main className="panel">
+              <h1 className="h2">Эфир пуст</h1>
+              <p className="muted">Когда появится комната, здесь будут карта станции, таймер и пульт страшилок.</p>
+            </main>
+          )}
         </div>
       </div>
     </div>
@@ -102,7 +112,6 @@ function Dashboard() {
 
 function RoomControl({ roomId }: { roomId: string }) {
   const r = useNet((s) => s.adminRooms.find((x) => x.id === roomId))
-  const nav = useNavigate()
   const [say, setSay] = useState('')
   if (!r) return null
   const s = r.state
@@ -111,47 +120,95 @@ function RoomControl({ roomId }: { roomId: string }) {
   const over = r.phase === 'won' || r.phase === 'lost'
 
   return (
-    <div className="admin-main">
+    <main className="admin-main">
       <section className="panel">
         <div className="admin-room-head">
           <div>
             <div className="eyebrow">{r.id} · {DIFFICULTIES[r.difficulty].label}</div>
-            <h1 className="h2" style={{ margin: 0 }}>{r.name}</h1>
+            <h1 className="h2">{r.name}</h1>
           </div>
-          <div className="admin-kpis">
-            <div><span className="faint">Фаза</span><b>{PHASES[r.phase]}</b></div>
-            <div><span className="faint">Таймер</span><b className={s && s.timeLeft < 60 ? 'pink' : 'acid'}>{s ? fmt(s.timeLeft) : '—'}</b></div>
-            <div><span className="faint">Вода</span><b>{s ? `${s.water.toFixed(2)} м` : '—'}</b></div>
-            <div><span className="faint">Пасхалки</span><b>{s ? `${s.eggsFound.length}/3` : '—'}</b></div>
-          </div>
+          <dl className="admin-kpis">
+            <div><dt>Фаза</dt><dd>{PHASES[r.phase]}</dd></div>
+            <div><dt>Таймер</dt><dd className={s && s.timeLeft < 60 ? 'pink' : 'acid'}>{s ? fmt(s.timeLeft) : '—'}{s?.paused ? ' ❚❚' : ''}</dd></div>
+            <div><dt>Вода</dt><dd>{s ? `${s.water.toFixed(2)} м` : '—'}</dd></div>
+            <div><dt>Пасхалки</dt><dd>{s ? `${s.eggsFound.length}/3` : '—'}</dd></div>
+          </dl>
         </div>
       </section>
 
       <div className="admin-cols">
-        <section className="panel" aria-labelledby="map-h">
-          <div className="admin-map-head">
-            <h2 id="map-h" className="h2" style={{ margin: 0 }}>Карта</h2>
-            {inGame && !over && <button className="btn btn-sm btn-primary" onClick={() => nav(`/admin/watch/${roomId}`)}>Наблюдать в 3D</button>}
-          </div>
-          <MiniMap />
-          {s && (
-            <ul className="admin-flags">
-              <li className={s.power ? 'ok' : ''}>Питание</li>
-              <li className={s.doorOpen ? 'ok' : ''}>Шлюз</li>
-              <li className={s.chargePlaced ? 'ok' : ''}>Заряд</li>
-              <li className={s.leversOk ? 'ok' : ''}>Рычаги {s.levers.map((v) => (v ? '▲' : '▼')).join('')} / {s.leverTarget.map((v) => (v ? '▲' : '▼')).join('')}</li>
-              <li>Код: <b className="cyan">{s.codeOrder.map((ci) => s.codeDigits[ci]).join('')}</b></li>
-              <li className={s.transferOpen ? 'ok' : ''}>Переход</li>
-              <li className={s.mosaicDone ? 'ok' : ''}>Мозаика</li>
-              <li className={s.armCodeOk ? 'ok' : ''}>Взвод: <b className="cyan">{s.armCode}</b></li>
-              <li className={s.pumpDoorOpen ? 'ok' : ''}>Вентили: {s.pumpOrder.map((i) => VALVE_SYMBOLS[i]).join(' ')}</li>
-              <li className={s.pumpOn ? 'ok' : ''}>Шланги {s.hoses}/3</li>
-              <li>Тайны: Цезарь <b className="cyan">{caesar(s.caesar, -CAESAR_SHIFT)}</b> · стих <b className="cyan">{POEMS[s.poem].answer}</b> · морзе <b className="cyan">{s.morse}</b> ({s.eggsFound.length}/6)</li>
+        <div className="stack">
+          <section className="panel" aria-labelledby="map-h">
+            <div className="panel-head">
+              <h2 id="map-h" className="h2">Карта</h2>
+              {inGame && !over && <Link className="btn btn-sm btn-primary" to={`/admin/watch/${roomId}`}>Наблюдать в 3D</Link>}
+            </div>
+            <MiniMap />
+            <ul className="admin-legend" aria-label="Обозначения на карте">
+              <li><i style={{ ['--c' as string]: 'var(--cyan)' }} />ячейка</li>
+              <li><i style={{ ['--c' as string]: 'var(--pink)' }} />битая ячейка</li>
+              <li><i style={{ ['--c' as string]: 'var(--acid)' }} />заряд</li>
+              <li><i className="ring" style={{ ['--c' as string]: 'var(--acid)' }} />место заряда</li>
+              <li><i style={{ ['--c' as string]: 'var(--ink)' }} />плитка</li>
+              <li><i style={{ ['--c' as string]: 'var(--amber)' }} />шланг, Пиксель</li>
             </ul>
-          )}
-        </section>
+          </section>
 
-        <div>
+          {s && (
+            <section className="panel" aria-labelledby="st-h">
+              <h2 id="st-h" className="h2">Станция</h2>
+              <ul className="admin-flags" aria-label="Что уже сделано">
+                <li className={s.power ? 'ok' : ''}>Питание</li>
+                <li className={s.doorOpen ? 'ok' : ''}>Шлюз</li>
+                <li className={s.chargePlaced ? 'ok' : ''}>Заряд</li>
+                <li className={s.leversOk ? 'ok' : ''}>Рычаги</li>
+                <li className={s.transferOpen ? 'ok' : ''}>Переход</li>
+                <li className={s.mosaicDone ? 'ok' : ''}>Мозаика</li>
+                <li className={s.armCodeOk ? 'ok' : ''}>Взвод</li>
+                <li className={s.pumpDoorOpen ? 'ok' : ''}>Вентили</li>
+                <li className={s.pumpOn ? 'ok' : ''}>Шланги {s.hoses}/3</li>
+                <li className={s.storageOpen ? 'ok' : ''}>Рубильники</li>
+                <li className={s.gasOk ? 'ok' : ''}>Газ {s.gasLoaded}/3</li>
+              </ul>
+              <dl className="admin-answers">
+                <div><dt>Код шлюза</dt><dd>{s.codeOrder.map((ci) => s.codeDigits[ci]).join('')}</dd></div>
+                <div><dt>Код взвода</dt><dd>{s.armCode}</dd></div>
+                <div><dt>Рычаги: сейчас / нужно</dt><dd><span>{s.levers.map((v) => (v ? '▲' : '▼')).join('')} / </span>{s.leverTarget.map((v) => (v ? '▲' : '▼')).join('')}</dd></div>
+                <div><dt>Вентили</dt><dd>{s.pumpOrder.map((i) => VALVE_SYMBOLS[i]).join(' ')}</dd></div>
+                <div><dt>Рубильники: сейчас / нужно</dt><dd><span>{s.breakers.map((v) => (v ? '▲' : '▼')).join('')} / </span>{s.breakerTarget.map((v) => (v ? '▲' : '▼')).join('')}</dd></div>
+                <div><dt>Редукторы: сейчас / нужно</dt><dd><span>{s.gasDials.join(' ')} / </span>{s.gasTarget.join(' ')}</dd></div>
+                <div><dt>Тайна: Цезарь</dt><dd>{caesar(s.caesar, -CAESAR_SHIFT)}</dd></div>
+                <div><dt>Тайна: стих</dt><dd>{POEMS[s.poem].answer}</dd></div>
+                <div><dt>Тайна: морзе</dt><dd>{s.morse}</dd></div>
+                <div><dt>Тайн найдено</dt><dd>{s.eggsFound.length}<span> из 6</span></dd></div>
+              </dl>
+            </section>
+          )}
+
+          <section className="panel" aria-labelledby="pl-h">
+            <h2 id="pl-h" className="h2">Игроки · {r.list.length}</h2>
+            {r.list.length === 0 && <p className="empty">В комнате никого нет.</p>}
+            <ul className="list">
+              {r.list.map((p) => (
+                <li key={p.id}>
+                  <span className="admin-player" style={{ ['--c' as string]: p.color }}>
+                    <i aria-hidden />
+                    <span className="truncate">{p.name}</span>
+                    {p.host && <span className="tag tag-acid">Хост</span>}
+                  </span>
+                  <span className="row">
+                    <span className={`tag ${p.escaped ? 'tag-ok' : !p.alive ? 'tag-pink' : p.ready || p.host ? 'tag-ok' : ''}`}>
+                      {p.escaped ? 'Спасён' : !p.alive ? 'Погиб' : inGame ? 'В игре' : p.ready || p.host ? 'Готов' : 'Ждёт'}
+                    </span>
+                    <ConfirmButton onConfirm={() => cmd({ c: 'kick', playerId: p.id })} label={`Исключить ${p.name}`}>Исключить</ConfirmButton>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+
+        <div className="stack">
           <section className="panel" aria-labelledby="time-h">
             <h2 id="time-h" className="h2">Время</h2>
             <div className="btn-row">
@@ -173,7 +230,7 @@ function RoomControl({ roomId }: { roomId: string }) {
             <form className="admin-say" onSubmit={(e) => { e.preventDefault(); if (say.trim()) cmd({ c: 'say', text: say }); setSay('') }}>
               <label htmlFor="say" className="field-label">Сообщение от оператора всем игрокам</label>
               <div className="row">
-                <input id="say" className="input" value={say} maxLength={240} onChange={(e) => setSay(e.target.value)} placeholder="Вода уже у ваших ног…" />
+                <input id="say" name="say" autoComplete="off" className="input" value={say} maxLength={240} onChange={(e) => setSay(e.target.value)} placeholder="Вода уже у ваших ног…" />
                 <button className="btn">Отправить</button>
               </div>
             </form>
@@ -202,25 +259,9 @@ function RoomControl({ roomId }: { roomId: string }) {
             </div>
           </section>
 
-          <section className="panel" aria-labelledby="pl-h">
-            <h2 id="pl-h" className="h2">Игроки · {r.list.length}</h2>
-            <ul className="list">
-              {r.list.map((p) => (
-                <li key={p.id}>
-                  <span style={{ color: p.color }}>■ {p.name}{p.host ? ' ★' : ''}</span>
-                  <span className="row">
-                    <span className={`tag ${p.escaped ? 'tag-ok' : !p.alive ? 'tag-pink' : p.ready || p.host ? 'tag-ok' : ''}`}>
-                      {p.escaped ? 'Спасён' : !p.alive ? 'Погиб' : inGame ? 'В игре' : p.ready || p.host ? 'Готов' : 'Ждёт'}
-                    </span>
-                    <ConfirmButton onConfirm={() => cmd({ c: 'kick', playerId: p.id })} label={`Исключить ${p.name}`}>Исключить</ConfirmButton>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -299,6 +340,7 @@ function MiniMap() {
       }
       // players
       g.font = '11px "JetBrains Mono", monospace'
+      let n = 0
       for (const p of st.room?.players ?? []) {
         const tf = live.players.get(p.id)
         if (!tf) continue
@@ -313,8 +355,14 @@ function MiniMap() {
         g.moveTo(x, y)
         g.lineTo(x - Math.sin(tf.yaw) * 12, y - Math.cos(tf.yaw) * 12)
         g.stroke()
+        // name on a dark plate; neighbours alternate above/below so two players side by side stay readable
+        const tw = g.measureText(p.name).width
+        const lx = Math.min(x + 9, W - tw - 6)
+        const ly = n++ % 2 ? y + 18 : y - 8
+        g.fillStyle = '#06070acc'
+        g.fillRect(lx - 3, ly - 10, tw + 6, 14)
         g.fillStyle = '#e6f1f4'
-        g.fillText(p.name, x + 8, y - 6)
+        g.fillText(p.name, lx, ly)
       }
     }
     draw()

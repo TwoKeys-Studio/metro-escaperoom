@@ -7,9 +7,11 @@ import { LINES } from '../game/dispatcher.lines.ts'
 import { WATER_START } from '../game/rules.ts'
 import { ItemsService } from '../items/items.service.ts'
 import { ArmCodePuzzle } from '../puzzles/arm-code.puzzle.ts'
+import { BreakersPuzzle } from '../puzzles/breakers.puzzle.ts'
 import { ChargePuzzle } from '../puzzles/charge.puzzle.ts'
 import { DetonatorPuzzle } from '../puzzles/detonator.puzzle.ts'
 import { DoorCodePuzzle } from '../puzzles/door-code.puzzle.ts'
+import { GasPuzzle } from '../puzzles/gas.puzzle.ts'
 import { JunctionLeversPuzzle } from '../puzzles/junction-levers.puzzle.ts'
 import { MosaicPuzzle } from '../puzzles/mosaic.puzzle.ts'
 import { PowerPuzzle } from '../puzzles/power.puzzle.ts'
@@ -39,6 +41,8 @@ export class MatchLifecycleService {
     private readonly transferDoor: TransferDoorPuzzle,
     private readonly pump: PumpPuzzle,
     private readonly detonator: DetonatorPuzzle,
+    private readonly breakers: BreakersPuzzle,
+    private readonly gas: GasPuzzle,
   ) {}
 
   /**
@@ -68,6 +72,8 @@ export class MatchLifecycleService {
       ...this.transferDoor.setup(),
       ...this.pump.setup(),
       ...this.detonator.setup(),
+      ...this.breakers.setup(),
+      ...this.gas.setup(),
       ...this.eggs.setup(room),
     }
     this.items.spawn(room, cfg)

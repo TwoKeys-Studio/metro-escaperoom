@@ -11,28 +11,39 @@ export function Hud({ spectator }: { spectator: boolean }) {
   const game = useNet((s) => s.game)
   const me = useNet((s) => s.room?.players.find((p) => p.id === s.myId))
   const ui = useUi()
-  if (!game) return <div className="hud-loading">Подключение к станции…</div>
+  if (!game) return <div className="loading" role="status">Подключение к станции…</div>
   const over = game.phase === 'won' || game.phase === 'lost'
   return (
-    <div className="hud" aria-live="polite">
+    <div className="hud">
       <Overlays />
-      <TopTimer game={game} />
+      {/* everything top-centre stacks in one column, so the timer, pause, countdown and notes never overlap */}
+      <div className="hud-top">
+        <TopTimer game={game} />
+        {game.paused && <div className="hud-paused" role="status">Пауза · оператор остановил время</div>}
+        {game.phase === 'evac' && <Evac game={game} />}
+        {game.phase === 'arm' && <ArmBar game={game} />}
+        {me && !me.alive && !over && (
+          <div className="hud-note" role="status">
+            Вы остались в тоннеле. Режим наблюдателя: <kbd>WASD</kbd> лететь · <kbd>Space</kbd> вверх · <kbd>C</kbd> вниз
+          </div>
+        )}
+      </div>
       <Objectives game={game} />
       <Feed />
       {!spectator && <ChatBox />}
       {!spectator && !over && me?.alive !== false && <Crosshair />}
       {!spectator && <Battery />}
-      {game.phase === 'evac' && <Evac game={game} />}
-      {game.phase === 'arm' && <ArmBar game={game} />}
-      {me && !me.alive && !over && (
-        <div className="hud-center-note pink">Вы остались в тоннеле. Режим наблюдателя: летайте WASD, Space, C</div>
+      {!spectator && !over && ui.locked && !ui.chat && (
+        <div className="hud-legend" aria-hidden>
+          <span><kbd>Enter</kbd> чат</span>
+          <span><kbd>Tab</kbd> команда</span>
+        </div>
       )}
       {ui.scores && <Scoreboard />}
       {ui.keypad && <KeypadModal target={ui.keypad} />}
       {ui.kiosk && <KioskModal game={game} />}
       {over && <EndScreen game={game} spectator={spectator} />}
       {!over && !ui.locked && !ui.keypad && !ui.kiosk && !ui.chat && <ClickToPlay spectator={spectator} />}
-      {game.paused && <div className="hud-paused">ПАУЗА · оператор остановил время</div>}
       {spectator && (
         <div className="hud-spectator">
           <span className="tag tag-acid">Наблюдатель</span>
@@ -59,10 +70,11 @@ function TopTimer({ game }: { game: GameState }) {
   const water = Math.max(0, Math.min(1, (live.water - (PIT_Y - 0.4)) / (0.45 - (PIT_Y - 0.4))))
   const danger = t < 60
   return (
-    <div className="hud-timer">
-      <div className="hud-timer-label">ДО ЗАТОПЛЕНИЯ · {DIFFICULTIES[game.difficulty].label}</div>
+    <div className="hud-timer" role="timer" aria-label="До затопления">
+      <div className="hud-timer-label">До затопления · {DIFFICULTIES[game.difficulty].label}</div>
       <div className={`hud-timer-value ${danger ? 'danger' : ''}`}>{game.blastDoorClosed ? '——:——' : fmt(t)}</div>
-      <div className="hud-water" aria-label={`Уровень воды ${Math.round(water * 100)}%`}>
+      <div className="hud-water-line"><span>Вода</span><span>{Math.round(water * 100)}%</span></div>
+      <div className="hud-water" role="img" aria-label={`Уровень воды ${Math.round(water * 100)}%`}>
         <div style={{ width: `${water * 100}%` }} />
       </div>
     </div>
@@ -77,21 +89,22 @@ function Objectives({ game }: { game: GameState }) {
   const steps = [
     { id: 'power', text: `Восстановить питание: энергоячейки в щит (${cells}/${game.sockets.length})` },
     { id: 'access', text: 'Открыть служебный шлюз: найти 4-значный код' },
-    { id: 'charge', text: `Заряд к завалу${ok(game.chargePlaced)} · рычаги по схеме${ok(game.leversOk)} · код взвода с мозаики${ok(game.armCodeOk)}` },
+    { id: 'charge', text: `Заряд к завалу${ok(game.chargePlaced)} · рычаги по схеме${ok(game.leversOk)} · код взвода с мозаики${ok(game.armCodeOk)} · газ со 2-го этажа${ok(game.gasOk)}` },
     { id: 'arm', text: game.solo ? 'Детонатор: держите [E] на пульте A или B' : 'Детонатор: два игрока держат пульты A и B одновременно' },
     { id: 'evac', text: 'Все за гермодверь! Покиньте восточный тоннель' },
     { id: 'escape', text: 'Все в лифт наверх' },
   ]
   return (
     <div className="hud-obj panel">
-      <div className="eyebrow">Задачи</div>
+      <div className="eyebrow">Задачи{idx >= 0 && idx < steps.length ? ` · этап ${idx + 1}/${steps.length}` : ''}</div>
       <ol>
         {steps.map((s, i) => {
           const state = idx > i ? 'done' : idx === i ? 'now' : 'next'
           if (state === 'next' && i > Math.max(idx, 0) + 1) return null
           return (
             <li key={s.id} className={state}>
-              <span aria-hidden>{state === 'done' ? '■' : state === 'now' ? '▶' : '□'}</span> {s.text}
+              <span aria-hidden>{state === 'done' ? '■' : state === 'now' ? '▶' : '□'}</span>
+              <span>{s.text}</span>
             </li>
           )
         })}
@@ -101,9 +114,15 @@ function Objectives({ game }: { game: GameState }) {
           <div className={game.transferOpen ? 'done' : ''}>Переход на ветку Б{ok(game.transferOpen)}</div>
           <div className={game.mosaicDone ? 'done' : ''}>Мозаика{ok(game.mosaicDone)}</div>
           <div className={game.pumpOn ? 'done' : ''}>Насос: шланги {game.hoses}/3{game.pumpDoorOpen ? '' : ' · дверь заперта'}</div>
+          {game.doorOpen && (
+            <>
+              <div className={game.storageOpen ? 'done' : ''}>2-й этаж: камера хранения{game.storageOpen ? ok(true) : ' заперта'}</div>
+              <div className={game.gasOk ? 'done' : ''}>Газ: баллоны {game.gasLoaded}/3{game.gasOk ? ok(true) : ' · давление не выставлено'}</div>
+            </>
+          )}
         </div>
       )}
-      {game.eggsFound.length > 0 && <div className="faint hud-eggs">Тайны: {game.eggsFound.length}/6</div>}
+      {game.eggsFound.length > 0 && <div className="hud-eggs">Тайны: {game.eggsFound.length}/6</div>}
     </div>
   )
 }
@@ -116,14 +135,14 @@ function Feed() {
   const chat = feed.filter((f) => f.from === 'chat' && now - f.at < 20000).slice(-6)
   return (
     <>
-      <div className="hud-feed">
+      <div className="hud-feed" role="log" aria-live="polite">
         {ai.map((f) => (
           <div key={f.id} className={`hud-say ${f.from === 'admin' ? 'admin' : ''}`}>
             {f.text}
           </div>
         ))}
       </div>
-      <div className="hud-chat-log">
+      <div className="hud-chat-log" role="log" aria-live="polite">
         {chat.map((f) => (
           <div key={f.id}>
             <b style={{ color: f.color }}>{f.name}:</b> {f.text}
@@ -156,8 +175,9 @@ function ChatBox() {
       }}
     >
       <label htmlFor="chat">Сообщение команде</label>
-      <input id="chat" ref={input} className="input" value={text} maxLength={200} autoComplete="off"
+      <input id="chat" name="message" ref={input} className="input" value={text} maxLength={200} autoComplete="off"
         onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && close()} />
+      <div className="hud-chat-keys" aria-hidden><span><kbd>Enter</kbd> отправить</span><span><kbd>Esc</kbd> закрыть</span></div>
     </form>
   )
 }
@@ -189,8 +209,10 @@ function Battery() {
   if (!drain) return null
   const b = Math.round(live.battery)
   return (
-    <div className={`hud-battery ${b < 20 ? 'low' : ''}`}>
-      ФОНАРЬ [F] {flash ? 'ВКЛ' : 'ВЫКЛ'} · {b}%
+    <div className={`hud-battery ${b < 20 ? 'low' : ''} ${flash ? 'on' : ''}`}>
+      <span><kbd>F</kbd> Фонарь {flash ? 'вкл' : 'выкл'}</span>
+      <span className="hud-battery-bar" aria-hidden><i style={{ width: `${Math.max(0, Math.min(100, b))}%` }} /></span>
+      <b>{b}%</b>
     </div>
   )
 }
@@ -198,8 +220,8 @@ function Battery() {
 function Evac({ game }: { game: GameState }) {
   useTick(100)
   return (
-    <div className="hud-evac">
-      <div>ДЕТОНАЦИЯ ЧЕРЕЗ</div>
+    <div className="hud-evac" role="timer" aria-label="До детонации">
+      <div>Детонация через</div>
       <strong>{game.evacLeft.toFixed(0)}</strong>
       <div>Покиньте восточный тоннель</div>
     </div>
@@ -208,7 +230,7 @@ function Evac({ game }: { game: GameState }) {
 
 function ArmBar({ game }: { game: GameState }) {
   return (
-    <div className="hud-arm">
+    <div className="hud-arm" role="img" aria-label={`Детонатор: пульт A ${game.detonator.a ? 'держат' : 'свободен'}, пульт B ${game.detonator.b ? 'держат' : 'свободен'}, ${Math.round(game.detonator.progress * 100)}%`}>
       <span className={game.detonator.a ? 'ok' : ''}>A</span>
       <div className="hud-arm-bar"><div style={{ width: `${game.detonator.progress * 100}%` }} /></div>
       <span className={game.detonator.b ? 'ok' : ''}>B</span>
@@ -235,11 +257,16 @@ function Scoreboard() {
   if (!room) return null
   return (
     <div className="hud-scores panel">
-      <div className="h2">{room.name} · {room.id}</div>
+      <div className="eyebrow">Команда · {room.players.length} · код {room.id}</div>
+      <div className="h2">{room.name}</div>
       <ul className="list">
         {room.players.map((p) => (
           <li key={p.id}>
-            <span style={{ color: p.color }}>■ {p.name}{p.host ? ' ★' : ''}</span>
+            <span className="hud-player" style={{ ['--c' as string]: p.color }}>
+              <i aria-hidden />
+              <span className="truncate">{p.name}</span>
+              {p.host && <span className="tag tag-acid">Хост</span>}
+            </span>
             <span className={`tag ${p.escaped ? 'tag-ok' : p.alive ? '' : 'tag-pink'}`}>{p.escaped ? 'Спасён' : p.alive ? 'В игре' : 'Погиб'}</span>
           </li>
         ))}
@@ -275,7 +302,9 @@ function KeypadModal({ target }: { target: 'door' | 'arm' }) {
     <div className="hud-modal" role="dialog" aria-modal="true" aria-label={target === 'arm' ? 'Пульт подрыва' : 'Кодовый замок служебного шлюза'}>
       <div className="keypad panel">
         <div className="eyebrow">{target === 'arm' ? 'Пульт подрыва · код взвода' : 'Служебный шлюз'}</div>
-        <div className="keypad-screen" aria-live="polite">{code.padEnd(4, '·')}</div>
+        <div className="keypad-screen" aria-live="polite" aria-label={`Введено: ${code || 'пусто'}`}>
+          {code.padEnd(4, '·').split('').map((c, i) => <span key={i} className={i < code.length ? 'on' : ''}>{c}</span>)}
+        </div>
         <div className="keypad-grid">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
             <button key={d} className="btn" onClick={() => press(d)}>{d}</button>
@@ -284,7 +313,8 @@ function KeypadModal({ target }: { target: 'door' | 'arm' }) {
           <button className="btn" onClick={() => press('0')}>0</button>
           <button className="btn btn-primary" onClick={submit} disabled={code.length !== 4} aria-label="Ввести код">OK</button>
         </div>
-        <button className="btn btn-sm btn-block" onClick={close}>Отойти [Esc]</button>
+        <button className="btn btn-sm btn-block" onClick={close}>Отойти <kbd>Esc</kbd></button>
+        <p className="keypad-help">Цифры с клавиатуры · <kbd>Enter</kbd> ввод · <kbd>⌫</kbd> стереть</p>
       </div>
     </div>
   )
@@ -312,18 +342,18 @@ function KioskModal({ game }: { game: GameState }) {
         close()
       }}>
         <div className="eyebrow">Инфокиоск · линия 17</div>
-        <p className="muted">Станция хранит три тайны. Разгаданное слово или число откроет время и секреты.</p>
+        <p className="kiosk-lead">Станция хранит три тайны. Разгаданное слово или число откроет время и секреты.</p>
         <ul className="kiosk-list">
           <li className={solved('caesar') ? 'ok' : ''}>Надпись на «Литейной», что сдвинута на номер линии</li>
           <li className={solved('poem') ? 'ok' : ''}>Стихи машиниста в вагоне 1977 года</li>
           <li className={solved('morse') ? 'ok' : ''}>Лампа в техкомнате, что не умеет молчать</li>
         </ul>
         <label htmlFor="kiosk-in" className="field-label">Ответ</label>
-        <input id="kiosk-in" ref={input} className="input" value={text} maxLength={24} autoComplete="off" spellCheck={false}
+        <input id="kiosk-in" name="answer" ref={input} className="input" value={text} maxLength={24} autoComplete="off" spellCheck={false}
           onChange={(e) => setText(e.target.value)} placeholder="Слово или число…" />
-        <div className="row" style={{ marginTop: 10 }}>
+        <div className="row kiosk-actions">
           <button className="btn btn-primary" disabled={!text.trim()}>Проверить</button>
-          <button type="button" className="btn" onClick={close}>Отойти [Esc]</button>
+          <button type="button" className="btn" onClick={close}>Отойти <kbd>Esc</kbd></button>
         </div>
       </form>
     </div>
@@ -334,8 +364,9 @@ function ClickToPlay({ spectator }: { spectator: boolean }) {
   return (
     <div className="hud-click">
       <div className="panel">
-        <div className="display" style={{ fontSize: 28 }}>НЕОН-17</div>
-        <p className="muted">Кликните по экрану, чтобы {spectator ? 'наблюдать' : 'играть'}</p>
+        <div className="eyebrow">{spectator ? 'Режим наблюдателя' : 'Управление захватит курсор · Esc вернёт'}</div>
+        <div className="display hud-click-title" translate="no">НЕОН-17</div>
+        <p className="hud-click-cta">Кликните по экрану, чтобы {spectator ? 'наблюдать' : 'играть'}</p>
         <div className="hud-keys">
           <span><kbd>WASD</kbd> идти</span>
           <span><kbd>Shift</kbd> бег</span>
@@ -361,11 +392,12 @@ function EndScreen({ game, spectator }: { game: GameState; spectator: boolean })
     document.exitPointerLock()
   }, [])
   return (
-    <div className="hud-modal">
-      <div className="panel end">
+    <div className="hud-modal" role="dialog" aria-modal="true" aria-label={won ? 'Вы выбрались' : 'Станция затоплена'}>
+      <div className={`panel end ${won ? 'won' : 'lost'}`}>
         <div className="hazard" />
+        <div className="eyebrow">{won ? 'Эвакуация завершена' : 'Связь со станцией потеряна'}</div>
         <div className={`display end-title ${won ? 'cyan' : 'pink'} glitch-text`}>{won ? 'Вы выбрались' : 'Станция затоплена'}</div>
-        <p className="muted">{won ? 'Тоннель запечатан, лифт ушёл наверх. ДИСПЕТЧЕР остался внизу один.' : game.outcome?.replace('ДИСПЕТЧЕР: ', '')}</p>
+        <p className="end-lead">{won ? 'Тоннель запечатан, лифт ушёл наверх. ДИСПЕТЧЕР остался внизу один.' : game.outcome?.replace('ДИСПЕТЧЕР: ', '')}</p>
         <ul className="list">
           <li><span>Сложность</span><b>{DIFFICULTIES[game.difficulty].label}</b></li>
           <li><span>Осталось времени</span><b>{fmt(game.timeLeft)}</b></li>
@@ -374,9 +406,9 @@ function EndScreen({ game, spectator }: { game: GameState; spectator: boolean })
         {!spectator && (
           me?.host
             ? <button className="btn btn-primary btn-block" onClick={() => send({ t: 'start' })}>{game.solo ? 'Пройти ещё раз' : 'Вернуть команду в лобби'}</button>
-            : <p className="faint">Хост вернёт всех в лобби.</p>
+            : <p className="end-wait" role="status">Хост вернёт всех в лобби.</p>
         )}
-        {!spectator && <button className="btn btn-block" style={{ marginTop: 8 }} onClick={() => send({ t: 'leave' })}>{game.solo ? 'В главное меню' : 'Выйти из комнаты'}</button>}
+        {!spectator && <button className="btn btn-block" onClick={() => send({ t: 'leave' })}>{game.solo ? 'В главное меню' : 'Выйти из комнаты'}</button>}
       </div>
     </div>
   )

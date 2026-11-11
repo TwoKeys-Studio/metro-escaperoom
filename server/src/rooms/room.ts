@@ -1,6 +1,7 @@
 import type { Difficulty, ItemKind, Socket, Vec3 } from '../../../shared/level.ts'
 import type { GameState, ItemState, Phase, PlayerInfo, PlayerTf, RoomSummary } from '../../../shared/protocol.ts'
 import type { Client } from '../connection/client.ts'
+import type { RatMind } from '../items/rats.service.ts'
 
 export interface Member {
   client: Client
@@ -33,6 +34,8 @@ export class Room {
   sockets: Socket[] = []
   /** Items that moved since the last tick. */
   readonly dirtyItems = new Set<string>()
+  /** What each rat is doing (see RatsService). */
+  readonly rats = new Map<string, RatMind>()
 
   timer: NodeJS.Timeout | null = null
   /** Seconds left of the intro cutscene. */

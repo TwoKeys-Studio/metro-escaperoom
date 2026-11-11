@@ -80,14 +80,43 @@ function setCurl(rig: Rig, curl: number, thumb: number) {
 function useArmMats() {
   return useMemo(() => ({
     sleeve: new THREE.MeshStandardMaterial({ color: '#2a323d', emissive: '#0c1117', roughness: 0.85, metalness: 0.1 }),
-    glove: new THREE.MeshStandardMaterial({ color: '#20252d', emissive: '#0a0d11', roughness: 0.7, metalness: 0.12 }),
+    glove: new THREE.MeshStandardMaterial({ color: GLOVE, emissive: '#0a0d11', roughness: 0.7, metalness: 0.12 }),
+    // the hand itself: glove and skin are painted per vertex (see paintGlove)
+    hand: new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#0b0a0a', roughness: 0.62, metalness: 0.04 }),
+    cuff: new THREE.MeshStandardMaterial({ color: '#36414f', emissive: '#0c1117', roughness: 0.8, metalness: 0.1 }),
     strap: new THREE.MeshStandardMaterial({ color: '#4b5665', emissive: '#0e1319', roughness: 0.35, metalness: 0.75 }),
     led: new THREE.MeshBasicMaterial({ color: new THREE.Color('#22f0ff').multiplyScalar(1.6), toneMapped: false }),
-    torch: new THREE.MeshStandardMaterial({ color: '#2a2f36', roughness: 0.3, metalness: 0.8 }),
+    torch: new THREE.MeshStandardMaterial({ color: '#69737f', emissive: '#10151b', roughness: 0.38, metalness: 0.7 }),
     lens: new THREE.MeshBasicMaterial({ color: new THREE.Color('#e8fbff').multiplyScalar(1.2), toneMapped: false }),
   }), [])
 }
 type Mats = ReturnType<typeof useArmMats>
+
+const GLOVE = '#232830'
+const SKIN = '#c9987c'
+// Fingerless gloves: the two outer bones of every finger (one for the thumb) are bare.
+const BARE = /(phalanx-intermediate|phalanx-distal|-tip)$/
+const isBare = (bone: string) => BARE.test(bone) && bone !== 'thumb-phalanx-proximal'
+
+/** Colours each vertex glove or skin by how much it follows the bare finger bones. */
+function paintGlove(mesh: THREE.SkinnedMesh) {
+  const geo = mesh.geometry.clone()
+  const bare = mesh.skeleton.bones.map((b) => isBare(b.name))
+  const index = geo.getAttribute('skinIndex')
+  const weight = geo.getAttribute('skinWeight')
+  const glove = new THREE.Color(GLOVE)
+  const skin = new THREE.Color(SKIN)
+  const c = new THREE.Color()
+  const colors = new Float32Array(index.count * 3)
+  for (let v = 0; v < index.count; v++) {
+    let w = 0
+    for (let k = 0; k < 4; k++) if (bare[index.getComponent(v, k)]) w += weight.getComponent(v, k)
+    c.copy(glove).lerp(skin, THREE.MathUtils.smoothstep(w, 0.4, 0.6)) // a crisp hem, not a gradient
+    c.toArray(colors, v * 3)
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  mesh.geometry = geo
+}
 
 /** Loads one hand, works out which way it faces, and prepares its fingers for bending. */
 function useHand(side: 1 | -1, mats: Mats) {
@@ -98,7 +127,8 @@ function useHand(side: 1 | -1, mats: Mats) {
     scene.traverse((o) => {
       const mesh = o as THREE.SkinnedMesh
       if (!mesh.isSkinnedMesh) return
-      mesh.material = mats.glove
+      mesh.material = mats.hand
+      paintGlove(mesh)
       mesh.frustumCulled = false // its bounds are those of the rest pose
     })
 
@@ -133,18 +163,22 @@ function Arm({ side, mats, hand }: { side: 1 | -1; mats: Mats; hand: ReturnType<
   return (
     <group>
       {/* sleeve: long enough that its far end is always off screen, even when reaching out to a crate */}
-      <mesh material={mats.sleeve} position={[0, -0.004, 0.61]} rotation-x={Math.PI / 2}>
-        <cylinderGeometry args={[0.036, 0.07, 1.1, 16]} />
+      <mesh material={mats.sleeve} position={[0, -0.004, 0.63]} rotation-x={Math.PI / 2} scale={[1.14, 1, 0.86]}>
+        <cylinderGeometry args={[0.036, 0.064, 1.1, 18]} />
       </mesh>
-      <mesh material={mats.led} position={[0.041 * side, 0.012, 0.2]} rotation-x={Math.PI / 2}>
+      {/* jacket cuff, a little wider than the sleeve it ends */}
+      <mesh material={mats.cuff} position={[0, -0.004, 0.105]} rotation-x={Math.PI / 2} scale={[1.14, 1, 0.86]}>
+        <cylinderGeometry args={[0.0395, 0.041, 0.05, 18]} />
+      </mesh>
+      <mesh material={mats.led} position={[0.047 * side, 0.004, 0.24]} rotation-x={Math.PI / 2}>
         <boxGeometry args={[0.004, 0.14, 0.008]} />
       </mesh>
       {/* glove cuff with a strap */}
-      <mesh material={mats.glove} position={[0, -0.004, 0.035]} rotation-x={Math.PI / 2} scale={[1, 1, 0.78]}>
-        <cylinderGeometry args={[0.036, 0.042, 0.075, 16]} />
+      <mesh material={mats.glove} position={[0, -0.004, 0.035]} rotation-x={Math.PI / 2} scale={[1.08, 1, 0.76]}>
+        <cylinderGeometry args={[0.033, 0.037, 0.08, 18]} />
       </mesh>
-      <mesh material={mats.strap} position={[0, -0.004, 0.05]} rotation-x={Math.PI / 2} scale={[1, 1, 0.8]}>
-        <cylinderGeometry args={[0.0425, 0.0425, 0.014, 16]} />
+      <mesh material={mats.strap} position={[0, -0.004, 0.05]} rotation-x={Math.PI / 2} scale={[1.08, 1, 0.76]}>
+        <cylinderGeometry args={[0.0375, 0.0375, 0.012, 18]} />
       </mesh>
       <group position={hand.position} quaternion={hand.rotation} scale={GLOVE_SCALE}>
         <primitive object={hand.scene} />
@@ -172,7 +206,7 @@ interface Grip {
 const over = (reach: number, curl: number, thumb = 0.9): Grip => ({ reach, curl, thumb })
 const DEFAULT_GRIP = over(0.1, 0.6)
 // round the near side of something tall, fingers running across it
-const AROUND = { elbow: [0.55, -0.3, 0.2] as V3, palm: [-0.25, 0, -1] as V3, reach: 0 }
+const AROUND = { elbow: [0.6, -0.24, 0.03] as V3, palm: [0, 0, -1] as V3, reach: 0 }
 // an open hand on the face turned to the player, the arm coming up from below
 const AGAINST = { elbow: [0.25, -0.6, 0.12] as V3, palm: [0, 0, -1] as V3, reach: 0, curl: 0.1, thumb: 0.15 }
 const GRIPS: Partial<Record<ItemKind, Grip>> = {
@@ -181,12 +215,19 @@ const GRIPS: Partial<Record<ItemKind, Grip>> = {
   helmet: over(0.16, 0.25, 0.4),
   pixel: over(0.24, 0.2, 0.3),
   hose: over(0.2, 0.25, 0.4),
-  cell: { ...AROUND, wrist: [0.085, -0.06, 0.125], curl: 0.42, thumb: 0.5 },
+  cell: { ...AROUND, wrist: [0.1, -0.07, 0.135], curl: 0.4, thumb: 0.5 },
   bottle: { ...AROUND, wrist: [0.055, -0.03, 0.085], curl: 0.7, thumb: 0.8 },
   cone: { ...AROUND, wrist: [0.07, 0.1, 0.1], curl: 0.5, thumb: 0.6 },
-  // clamped on the right edge, so the picture stays in view
-  tile: { wrist: [0.3, -0.06, 0.05], elbow: [0.25, -0.45, 0.5], palm: [-1, 0, -0.2], reach: 0, curl: 0.8, thumb: 1 },
+  // held by its lower right corner, so the picture stays in view
+  tile: { wrist: [0.25, -0.35, 0.08], elbow: [0.3, -0.5, 0.05], palm: [0, 0, -1], reach: 0, curl: 0.15, thumb: 0.3 },
   crate: { ...AGAINST, wrist: [0.16, -0.04, 0.42] },
+  gas: { ...AROUND, wrist: [0.12, -0.02, 0.155], curl: 0.36, thumb: 0.5 },
+  rat: over(0.05, 0.85),
+  doll: { ...AROUND, wrist: [0.06, -0.1, 0.1], curl: 0.75, thumb: 0.8 },
+  skull: over(0.12, 0.4, 0.5),
+  book: over(0.05, 0.5, 0.7),
+  mask: over(0.14, 0.35, 0.5),
+  jar: { ...AROUND, wrist: [0.07, -0.02, 0.1], curl: 0.6, thumb: 0.7 },
   chair: { ...AGAINST, wrist: [0.12, 0.05, 0.28] },
   charge: { ...AGAINST, wrist: [0.18, 0, 0.23] },
 }
@@ -266,8 +307,8 @@ function HandsInner() {
       v.holdPalm.addScaledVector(v.forearm, -v.holdPalm.dot(v.forearm)).normalize()
       v.holdWrist.copy(hold.view).addScaledVector(v.forearm, -0.075).addScaledVector(v.holdPalm, -(grip.reach + 0.02))
     }
-    v.wrist.set(0.3 + bobX + shock - s.reach * 0.14, -0.3 - bobY + breathe + s.reach * 0.09, -0.52 - s.reach * 0.2).lerp(v.holdWrist, s.grip)
-    v.palm.set(-0.3 + s.reach * 0.1, -1, -0.15).normalize().lerp(v.holdPalm, s.grip)
+    v.wrist.set(0.27 + bobX + shock - s.reach * 0.12, -0.27 - bobY + breathe + s.reach * 0.08, -0.45 - s.reach * 0.2).lerp(v.holdWrist, s.grip)
+    v.palm.set(0.12 + s.reach * 0.1, -1, 0.12).normalize().lerp(v.holdPalm, s.grip)
     v.elbow.copy(ELBOW_R).lerp(v.holdElbow, s.grip)
     orient(v.q, v.forearm.copy(v.wrist).sub(v.elbow).normalize(), v.back.copy(v.palm).negate())
     right.current.position.copy(v.wrist)
@@ -277,7 +318,7 @@ function HandsInner() {
 
     // ---- left hand: a fist around the flashlight, which points where the player looks
     const flashOn = useUi.getState().flash
-    v.wrist.set(-0.3 - bobX + shock, -0.31 - bobY + breathe + (flashOn ? 0 : -0.12), -0.52)
+    v.wrist.set(-0.27 - bobX + shock, -0.28 - bobY + breathe + (flashOn ? 0 : -0.12), -0.45)
     v.forearm.copy(v.wrist).sub(ELBOW_L).normalize()
     // the flashlight lies across the palm, lens on the thumb side; aiming it forward fixes the roll of the fist
     v.back.set(0.06, 0.04, -1).cross(v.forearm)
@@ -307,6 +348,13 @@ function HandsInner() {
             </mesh>
             <mesh material={mats.lens} position-y={0.1105} rotation-x={-Math.PI / 2}>
               <circleGeometry args={[0.024, 18]} />
+            </mesh>
+            {/* tail cap with a glowing switch: the end the player actually sees */}
+            <mesh material={mats.strap} position-y={-0.09}>
+              <cylinderGeometry args={[0.019, 0.02, 0.014, 14]} />
+            </mesh>
+            <mesh material={mats.led} position-y={-0.098} rotation-x={Math.PI / 2}>
+              <circleGeometry args={[0.007, 12]} />
             </mesh>
           </group>
         </group>

@@ -101,6 +101,12 @@ function Marker({ target }: { target: Target }) {
   const arrow = useRef<HTMLElement>(null)
   const tRef = useRef(target)
   tRef.current = target
+  // half the label's size, measured when the label changes (never per frame), to keep it inside the viewport
+  const half = useRef({ w: 40, h: 24 })
+  useEffect(() => {
+    const n = el.current
+    if (n) half.current = { w: n.offsetWidth / 2, h: n.offsetHeight / 2 }
+  }, [target.label])
 
   useEffect(() => {
     let raf = 0
@@ -132,8 +138,9 @@ function Marker({ target }: { target: Target }) {
         y *= k
         if (behind && Math.abs(y) > Math.abs(x)) y = -m // behind you: keep it at the bottom
       }
-      const sx = ((x + 1) / 2) * W
-      const sy = ((1 - y) / 2) * H
+      const pad = 8
+      const sx = Math.min(Math.max(((x + 1) / 2) * W, half.current.w + pad), W - half.current.w - pad)
+      const sy = Math.min(Math.max(((1 - y) / 2) * H, half.current.h + pad), H - half.current.h - pad)
       node.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -50%)`
       node.classList.toggle('edge', off)
       if (arrow.current) arrow.current.style.transform = `rotate(${Math.atan2(-y, x)}rad)`

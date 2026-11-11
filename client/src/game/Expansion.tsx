@@ -17,11 +17,10 @@ export function Expansion() {
   const game = useNet((s) => s.game)
   if (!game) return null
   const order = game.pumpOrder
+  // short numbered lines: the plaque sizes its text by the longest line, so brevity keeps it large
   const riddle = [
-    `Сперва поверни ${VALVE_RIDDLE[order[0]]},`,
-    `затем — ${VALVE_RIDDLE[order[1]]},`,
-    `потом — ${VALVE_RIDDLE[order[2]]},`,
-    `и последним — ${VALVE_RIDDLE[order[3]]}.`,
+    'Поверни по порядку:',
+    ...order.map((valve, i) => `${i + 1} — ${VALVE_RIDDLE[valve]}`),
     'Ошибёшься — начнёшь сначала.',
   ]
   const poem = POEMS[game.poem]
@@ -54,8 +53,8 @@ export function Expansion() {
       <Sign text="КОД ВЗВОДА ПОМНИТ ЭТА СТЕНА" p={[57.97, 3.55, -8]} r={-Math.PI / 2} w={3.4} h={0.32} o={{ color: '#ff9a1f', glow: 8 }} needsPower />
 
       {/* corridor neon */}
-      <mesh position={[28.2, 2.98, -3]} material={getMats().neonPink}>
-        <boxGeometry args={[11, 0.04, 0.08]} />
+      <mesh position={[28.2, 2.86, -3]} rotation-z={Math.PI / 2} material={getMats().neonPink}>
+        <cylinderGeometry args={[0.03, 0.03, 11, 8]} />
       </mesh>
 
       <ArmTerminal />

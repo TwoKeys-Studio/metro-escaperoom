@@ -9,6 +9,7 @@ import { sfx } from './audio'
 import { getItemGeo, getItemMats } from './item-materials'
 import { getMats } from './materials'
 import { tileFaceTexture } from './textures'
+import { ExtraCollider, ExtraMesh, isExtraKind } from './ItemsExtra'
 import { hold, interactables, itemLabels, keys, useUi } from './ui'
 
 export function Items() {
@@ -28,6 +29,8 @@ const CARRY: Record<ItemKind, [number, number, number]> = {
   cone: [0.4, 0.36, 0.9], pixel: [0.38, 0.32, 0.9], hose: [0.4, 0.34, 0.9], pipe: [0.38, 0.34, 0.95],
   tile: [0.42, 0.34, 0.95], chair: [0.52, 0.5, 1.2], crate: [0.55, 0.52, 1.35],
   charge: [0.2, 0.55, 1.15], // heavy: lugged low in front with both arms
+  gas: [0.4, 0.46, 0.95], rat: [0.3, 0.24, 0.62], doll: [0.34, 0.28, 0.72], skull: [0.34, 0.28, 0.72],
+  book: [0.36, 0.3, 0.75], mask: [0.34, 0.28, 0.75], jar: [0.32, 0.26, 0.68],
 }
 // How far in front of the eyes an item is put down, straight along the crosshair.
 const PLACE_REACH: Partial<Record<ItemKind, number>> = { charge: 1.3, crate: 1.5 }
@@ -35,6 +38,7 @@ const PLACE_REACH: Partial<Record<ItemKind, number>> = { charge: 1.3, crate: 1.5
 const PLACE_MS = 220
 const MASS: Record<ItemKind, number> = {
   cell: 2, charge: 25, crate: 8, can: 0.3, cone: 1, bottle: 0.5, chair: 4, pixel: 3, helmet: 1, pipe: 3, tile: 1.5, hose: 3,
+  gas: 14, rat: 0.4, doll: 0.6, skull: 1, book: 0.8, mask: 0.7, jar: 0.9,
 }
 
 function Item({ id }: { id: string }) {
@@ -78,6 +82,7 @@ function Item({ id }: { id: string }) {
       useUi.setState({ holding: id })
       sfx.grab()
       if (it.kind === 'pixel') sfx.meow()
+      if (it.kind === 'rat') sfx.squeak()
     }
 
     const holding = hold.id === id
@@ -222,6 +227,7 @@ function ItemCollider({ kind }: { kind: ItemKind }) {
     case 'pipe': return <CylinderCollider args={[0.5, 0.05]} rotation={[0, 0, Math.PI / 2]} />
     case 'tile': return <CuboidCollider args={[0.27, 0.27, 0.03]} friction={1} />
     case 'hose': return <CylinderCollider args={[0.12, 0.28]} />
+    default: return <ExtraCollider kind={kind} />
   }
 }
 
@@ -303,6 +309,7 @@ export function ItemMesh({ kind, socketed, fake, id }: { kind: ItemKind; sockete
   const mats = getMats()
   const m = getItemMats()
   const geo = getItemGeo()
+  if (isExtraKind(kind)) return <ExtraMesh kind={kind} />
   switch (kind) {
     case 'tile': return <TileMesh index={Number(id.replace('tile', ''))} />
     case 'hose': return <HoseMesh />

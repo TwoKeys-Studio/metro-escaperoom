@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { CELL_SPOTS, CHARGE_SPAWN, HOSE_SPOTS, PROPS, TILE_SPOTS, dist, type DifficultyConfig, type Vec3 } from '../../../shared/level.ts'
+import {
+  CELL_SPOTS, CHARGE_SPAWN, F2_PROPS, GAS_SPOTS, HOSE_SPOTS, PROPS, RAT_SPOTS, TILE_SPOTS, dist,
+  type DifficultyConfig, type Vec3,
+} from '../../../shared/level.ts'
 import type { ItemState } from '../../../shared/protocol.ts'
 import { shuffle } from '../common/random.ts'
 import type { ActivePlayer } from '../connection/sender.decorator.ts'
@@ -30,6 +33,7 @@ export class ItemsService {
   /** Places every item of a new game. Spots are shuffled so every run differs. */
   spawn(room: Room, cfg: DifficultyConfig) {
     room.items.clear()
+    room.rats.clear()
     const cellSpots = shuffle([...CELL_SPOTS])
     const total = cfg.cells + cfg.fakeCells
     for (let i = 0; i < total; i++) room.addItem(`cell${i}`, 'cell', cellSpots[i % cellSpots.length], i >= cfg.cells)
@@ -37,7 +41,9 @@ export class ItemsService {
     const tileSpots = shuffle([...TILE_SPOTS])
     for (let i = 0; i < 9; i++) room.addItem(`tile${i}`, 'tile', tileSpots[i])
     HOSE_SPOTS.forEach((p, i) => room.addItem(`hose${i}`, 'hose', p))
-    for (const p of PROPS) room.addItem(p.id, p.kind, p.pos)
+    for (const p of [...PROPS, ...F2_PROPS]) room.addItem(p.id, p.kind, p.pos)
+    GAS_SPOTS.forEach((p, i) => room.addItem(`gas${i}`, 'gas', p))
+    RAT_SPOTS.forEach((p, i) => room.addItem(`rat${i}`, 'rat', p))
   }
 
   grab({ room, client, member }: ActivePlayer, id: string) {

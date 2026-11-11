@@ -10,6 +10,7 @@ import { sfx } from './audio'
 import { EventAudio, GhostTrain, Particles, Shadow, Water } from './Fx'
 import { Hud } from './Hud'
 import { Items } from './Items'
+import { Apparitions } from './Apparitions'
 import { Hands, handState } from './Hands'
 import { Lights } from './Lights'
 import { CameraBridge, Markers } from './Markers'
@@ -61,7 +62,7 @@ export function Game({ spectator = false }: { spectator?: boolean }) {
           }}
         >
           <color attach="background" args={['#020304']} />
-          <fogExp2 attach="fog" args={['#05070a', cfg.fog]} />
+          <fogExp2 attach="fog" args={['#050a0d', cfg.fog]} />
           <Suspense fallback={null}>
             <Physics gravity={[0, -14, 0]}>
               <World />
@@ -75,6 +76,7 @@ export function Game({ spectator = false }: { spectator?: boolean }) {
             <Particles />
             <GhostTrain />
             <Shadow />
+            <Apparitions />
             <EventAudio />
             <CameraBridge />
             {mode === 'player' && <Hands />}
@@ -105,8 +107,8 @@ function Post() {
       <Bloom mipmapBlur intensity={1.1} luminanceThreshold={0.85} luminanceSmoothing={0.2} radius={0.75} />
       <ChromaticAberration ref={ca} offset={new THREE.Vector2(0.0008, 0.0005)} radialModulation={false} modulationOffset={0} />
       <Glitch ref={glitch} mode={GlitchMode.DISABLED} delay={new THREE.Vector2(0, 0)} duration={new THREE.Vector2(0.1, 0.3)} strength={new THREE.Vector2(0.2, 0.5)} />
-      <Noise opacity={0.07} premultiply />
-      <Vignette eskil={false} offset={0.25} darkness={0.85} />
+      <Noise opacity={0.05} premultiply />
+      <Vignette eskil={false} offset={0.28} darkness={0.72} />
     </EffectComposer>
   )
 }
@@ -143,6 +145,14 @@ function interact() {
     case 'lever':
       send({ t: 'lever', index: f.index })
       sfx.lever()
+      break
+    case 'breaker':
+      send({ t: 'breaker', index: f.index })
+      sfx.lever()
+      break
+    case 'dial':
+      send({ t: 'dial', index: f.index })
+      sfx.tone(520, 'square', 0.05, 0.07)
       break
     case 'console':
       if (hold.console !== f.which) {

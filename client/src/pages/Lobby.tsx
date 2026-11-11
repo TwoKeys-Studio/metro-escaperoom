@@ -24,6 +24,7 @@ export function Lobby() {
   const reason = count < MIN_PLAYERS ? `Нужно ещё ${MIN_PLAYERS - count} — минимум ${MIN_PLAYERS} игрока` : notReady ? `Ждём готовности: ${notReady}` : ''
   const slots = Array.from({ length: MAX_PLAYERS }, (_, i) => room.players[i] ?? null)
   const chat = feed.filter((f) => f.from === 'chat' || f.from === 'admin')
+  const readyCount = room.players.filter((p) => p.ready || p.host).length
 
   return (
     <>
@@ -31,7 +32,7 @@ export function Lobby() {
       <div className="page">
         <div className="wrap">
           <header className="topbar">
-            <span className="logo">НЕОН<b>-17</b></span>
+            <span className="logo" translate="no">НЕОН<b>-17</b></span>
             <button className="btn btn-sm btn-danger" onClick={() => send({ t: 'leave' })}>Покинуть комнату</button>
           </header>
 
@@ -50,14 +51,14 @@ export function Lobby() {
                 }).catch(() => {})
               }}
             >
-              <span className="faint">Код комнаты</span>
-              <strong>{room.id}</strong>
-              <span className="faint">{copied ? 'Скопировано' : 'Нажмите, чтобы скопировать'}</span>
+              <span>Код комнаты</span>
+              <strong translate="no">{room.id}</strong>
+              <span className={copied ? 'copied' : ''} aria-live="polite">{copied ? 'Скопировано ✓' : 'Нажмите, чтобы скопировать'}</span>
             </button>
           </section>
 
-          <div className="grid-2">
-            <div>
+          <main className="grid-2">
+            <div className="stack">
               <section className="panel" aria-labelledby="crew-h">
                 <h2 id="crew-h" className="h2">Команда · {count}/{MAX_PLAYERS}</h2>
                 <ul className="slots">
@@ -70,7 +71,10 @@ export function Lobby() {
                           <span className={`tag ${p.host ? 'tag-acid' : p.ready ? 'tag-ok' : ''}`}>{p.host ? 'Хост' : p.ready ? 'Готов' : 'Ждём'}</span>
                         </>
                       ) : (
-                        <span className="faint">Свободно</span>
+                        <>
+                          <span className="slot-no" aria-hidden>{String(i + 1).padStart(2, '0')}</span>
+                          <span>Свободно</span>
+                        </>
                       )}
                     </li>
                   ))}
@@ -86,36 +90,52 @@ export function Lobby() {
                   <li><b className="acid">Детонатор.</b> Два игрока одновременно держат пульты A и B. Потом у всех секунды, чтобы уйти за гермодверь.</li>
                   <li><b className="acid">Лифт.</b> Все живые в лифте, и вы спасены.</li>
                 </ol>
-                <p className="faint">Управление: WASD, мышь, E взять/использовать, ПКМ бросить, F фонарь, Enter чат, Tab команда.</p>
+                <ul className="keys" aria-label="Управление">
+                  <li><kbd>WASD</kbd> идти</li>
+                  <li><kbd>Мышь</kbd> смотреть</li>
+                  <li><kbd>E</kbd> взять, использовать</li>
+                  <li><kbd>ПКМ</kbd> бросить</li>
+                  <li><kbd>F</kbd> фонарь</li>
+                  <li><kbd>Enter</kbd> чат</li>
+                  <li><kbd>Tab</kbd> команда</li>
+                </ul>
               </section>
             </div>
 
-            <div>
-              <section className="panel" aria-labelledby="diff-h">
-                <h2 id="diff-h" className="h2">Сложность · {DIFFICULTIES[room.difficulty].label}</h2>
-                <DifficultyPicker value={room.difficulty} disabled={!host} labelledBy="diff-h" onChange={(d) => send({ t: 'difficulty', difficulty: d })} />
-                {!host && <p className="faint field-help">Сложность выбирает хост.</p>}
-              </section>
-
-              <section className="panel">
+            <div className="stack">
+              <section className="panel" aria-labelledby="go-h">
+                <h2 id="go-h" className="h2">{host ? 'Старт' : 'Готовность'}</h2>
+                <div className="ready-line"><span>Готовы</span><b>{readyCount} из {count}</b></div>
+                <div className="ready-meter" aria-hidden>
+                  {room.players.map((p) => <i key={p.id} className={p.ready || p.host ? 'on' : ''} />)}
+                </div>
                 {host ? (
                   <>
                     <button className="btn btn-primary btn-block" disabled={!!reason} onClick={() => send({ t: 'start' })}>
                       Спуститься в метро
                     </button>
-                    <p className="faint field-help" role="status">{reason || 'Все на месте. Можно начинать.'}</p>
+                    <p className={`field-help ${reason ? 'warn' : ''}`} role="status">{reason || 'Все на месте. Можно начинать.'}</p>
                   </>
                 ) : (
-                  <button className={`btn btn-block ${me?.ready ? '' : 'btn-primary'}`} onClick={() => send({ t: 'ready', ready: !me?.ready })}>
-                    {me?.ready ? 'Я не готов' : 'Я готов'}
-                  </button>
+                  <>
+                    <button className={`btn btn-block ${me?.ready ? '' : 'btn-primary'}`} onClick={() => send({ t: 'ready', ready: !me?.ready })}>
+                      {me?.ready ? 'Я не готов' : 'Я готов'}
+                    </button>
+                    <p className="field-help" role="status">{me?.ready ? 'Вы готовы. Игру запустит хост.' : 'Отметьтесь, когда будете готовы спускаться.'}</p>
+                  </>
                 )}
+              </section>
+
+              <section className="panel" aria-labelledby="diff-h">
+                <h2 id="diff-h" className="h2">Сложность · {DIFFICULTIES[room.difficulty].label}</h2>
+                <DifficultyPicker value={room.difficulty} disabled={!host} labelledBy="diff-h" onChange={(d) => send({ t: 'difficulty', difficulty: d })} />
+                {!host && <p className="field-help">Сложность выбирает хост.</p>}
               </section>
 
               <section className="panel" aria-labelledby="chat-h">
                 <h2 id="chat-h" className="h2">Рация</h2>
-                <div className="lobby-chat" ref={log} aria-live="polite">
-                  {chat.length === 0 && <p className="faint">Тишина в эфире.</p>}
+                <div className="lobby-chat" ref={log} role="log" aria-live="polite" aria-labelledby="chat-h" tabIndex={0}>
+                  {chat.length === 0 && <p className="muted">Тишина в эфире.</p>}
                   {chat.map((f) => (
                     <div key={f.id}>
                       {f.from === 'admin' ? <b className="acid">ОПЕРАТОР:</b> : <b style={{ color: f.color }}>{f.name}:</b>} {f.text}
@@ -128,12 +148,12 @@ export function Lobby() {
                   setText('')
                 }}>
                   <label htmlFor="lchat" className="sr-only">Сообщение</label>
-                  <input id="lchat" className="input" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} placeholder="Сообщение команде…" autoComplete="off" />
+                  <input id="lchat" name="message" className="input" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} placeholder="Сообщение команде…" autoComplete="off" />
                   <button className="btn">Отправить</button>
                 </form>
               </section>
             </div>
-          </div>
+          </main>
         </div>
       </div>
     </>

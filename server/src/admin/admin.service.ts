@@ -88,6 +88,11 @@ export class AdminService {
       s.levers = [...s.leverTarget]
       s.leversOk = true
       s.armCodeOk = true
+      s.breakers = [...s.breakerTarget]
+      s.storageOpen = true
+      s.gasDials = [...s.gasTarget]
+      s.gasLoaded = s.gasTarget.length
+      s.gasOk = true
       const charge = room.items.get('charge')
       if (charge) {
         charge.p = [...CHARGE_SOCKET.pos]

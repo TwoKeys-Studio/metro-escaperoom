@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { CHARGE_SOCKET, HOSE_SOCKETS, MOSAIC_SOCKETS, dist, type Socket } from '../../../shared/level.ts'
+import { CHARGE_SOCKET, GAS_SOCKETS, HOSE_SOCKETS, MOSAIC_SOCKETS, dist, type Socket } from '../../../shared/level.ts'
 import type { ItemState } from '../../../shared/protocol.ts'
 import { ChargePuzzle } from '../puzzles/charge.puzzle.ts'
+import { GasPuzzle } from '../puzzles/gas.puzzle.ts'
 import { MosaicPuzzle } from '../puzzles/mosaic.puzzle.ts'
 import { PowerPuzzle } from '../puzzles/power.puzzle.ts'
 import { PumpPuzzle } from '../puzzles/pump.puzzle.ts'
@@ -10,7 +11,7 @@ import type { Member, Room } from '../rooms/room.ts'
 
 /**
  * Sockets are the places an item snaps into: cells into the power panel, the charge at the collapse,
- * tiles into the mosaic frame, hoses into the pump. Snapping an item tells the puzzle it belongs to.
+ * tiles into the mosaic frame, hoses into the pump, gas cylinders into the rig. Snapping an item tells the puzzle it belongs to.
  */
 @Injectable()
 export class SocketsService {
@@ -20,6 +21,7 @@ export class SocketsService {
     private readonly charge: ChargePuzzle,
     private readonly mosaic: MosaicPuzzle,
     private readonly pump: PumpPuzzle,
+    private readonly gas: GasPuzzle,
   ) {}
 
   /** The nearest free socket that accepts the item and is within reach of where it was dropped. */
@@ -30,6 +32,7 @@ export class SocketsService {
       : it.kind === 'charge' ? [CHARGE_SOCKET]
       : it.kind === 'tile' ? MOSAIC_SOCKETS
       : it.kind === 'hose' ? HOSE_SOCKETS
+      : it.kind === 'gas' ? GAS_SOCKETS
       : []
     if (it.kind === 'cell' && s.phase !== 'power') return null
     if (it.kind === 'charge' && s.phase !== 'charge') return null
@@ -59,5 +62,6 @@ export class SocketsService {
     if (it.kind === 'tile') this.mosaic.onTilePlaced(room)
     if (it.kind === 'hose') this.pump.onHoseConnected(room)
     if (it.kind === 'charge') this.charge.onChargePlaced(room)
+    if (it.kind === 'gas') this.gas.onCylinderLoaded(room)
   }
 }

@@ -239,6 +239,40 @@ class Sfx {
     this.burst(0.9, 2500, 0.25, undefined, 'bandpass', 4)
   }
   meow(at?: V3) { this.tone(700, 'triangle', 0.35, 0.15, at, 420); setTimeout(() => this.tone(950, 'sine', 0.2, 0.08, at, 700), 120) }
+  /** A rat picked up. */
+  squeak(at?: V3) {
+    this.tone(2600, 'sawtooth', 0.07, 0.07, at, 3400)
+    setTimeout(() => this.tone(3000, 'sawtooth', 0.09, 0.06, at, 2200), 90)
+  }
+  /** Laughter somewhere in the dark: a run of short falling "ha"s through a vowel-like filter. */
+  laugh(at?: V3) {
+    const c = this.ensure()
+    if (!c) return
+    const out = this.spatial(at)
+    const base = 300 + Math.random() * 90
+    const count = 5 + Math.floor(Math.random() * 4)
+    for (let i = 0; i < count; i++) {
+      const t0 = c.currentTime + i * (0.17 + i * 0.012)
+      const pitch = base * (1 + 0.16 * Math.sin(i * 1.7)) * (1 - i * 0.03)
+      const o = c.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.setValueAtTime(pitch * 1.25, t0)
+      o.frequency.exponentialRampToValueAtTime(pitch * 0.8, t0 + 0.13)
+      const f = c.createBiquadFilter()
+      f.type = 'bandpass'
+      f.frequency.value = 950
+      f.Q.value = 4
+      const g = c.createGain()
+      g.gain.setValueAtTime(0.0001, t0)
+      g.gain.exponentialRampToValueAtTime(0.22 * (1 - i / (count + 2)), t0 + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15)
+      o.connect(f).connect(g).connect(out)
+      o.start(t0)
+      o.stop(t0 + 0.17)
+    }
+    // breath under it
+    this.burst(count * 0.19, 1800, 0.05, at, 'bandpass', 1.5)
+  }
   ding() { this.tone(1568, 'sine', 1.2, 0.15); setTimeout(() => this.tone(1175, 'sine', 1.4, 0.15), 250) }
 }
 

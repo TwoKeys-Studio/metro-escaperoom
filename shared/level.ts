@@ -30,20 +30,20 @@ export interface DifficultyConfig {
 
 export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   easy: {
-    id: 'easy', label: 'Лёгкая', minutes: 28, cells: 3, fakeCells: 0, hints: true,
+    id: 'easy', label: 'Лёгкая', minutes: 90, cells: 3, fakeCells: 0, hints: true,
     eventEverySec: [70, 110], fog: 0.026, ambient: 0.55, flashlightDrain: 0, evacSeconds: 45,
   },
   normal: {
-    id: 'normal', label: 'Нормальная', minutes: 22, cells: 3, fakeCells: 1, hints: false,
+    id: 'normal', label: 'Нормальная', minutes: 60, cells: 3, fakeCells: 1, hints: false,
     eventEverySec: [45, 80], fog: 0.032, ambient: 0.42, flashlightDrain: 0, evacSeconds: 35,
   },
   hard: {
-    id: 'hard', label: 'Сложная', minutes: 17, cells: 4, fakeCells: 1, hints: false,
-    eventEverySec: [30, 55], fog: 0.04, ambient: 0.3, flashlightDrain: 0.25, evacSeconds: 28,
+    id: 'hard', label: 'Сложная', minutes: 45, cells: 4, fakeCells: 1, hints: false,
+    eventEverySec: [30, 55], fog: 0.04, ambient: 0.3, flashlightDrain: 0.1, evacSeconds: 28,
   },
   nightmare: {
-    id: 'nightmare', label: 'Кошмар', minutes: 13, cells: 4, fakeCells: 2, hints: false,
-    eventEverySec: [18, 35], fog: 0.05, ambient: 0.18, flashlightDrain: 0.45, evacSeconds: 22,
+    id: 'nightmare', label: 'Кошмар', minutes: 30, cells: 4, fakeCells: 2, hints: false,
+    eventEverySec: [18, 35], fog: 0.05, ambient: 0.18, flashlightDrain: 0.22, evacSeconds: 22,
   },
 }
 
@@ -53,6 +53,7 @@ export const MAX_PLAYERS = 12
 // ---------- Items ----------
 export type ItemKind =
   | 'cell' | 'charge' | 'crate' | 'can' | 'cone' | 'bottle' | 'chair' | 'pixel' | 'helmet' | 'pipe' | 'tile' | 'hose'
+  | 'gas' | 'rat' | 'doll' | 'skull' | 'book' | 'mask' | 'jar'
 
 export interface ItemSpec { id: string; kind: ItemKind; pos: Vec3 }
 
@@ -60,7 +61,7 @@ export interface ItemSpec { id: string; kind: ItemKind; pos: Vec3 }
 export const CELL_SPOTS: Vec3[] = [
   [-12.5, 0.15, -6.0], // under the bench in the hall
   [-38, PIT_Y + 0.4, 9.6], // west tunnel, between rails
-  [-47, PIT_Y + 0.75, 8.6], // inside the dead train car
+  [-47, PIT_Y + 1.02, 8.6], // inside the dead train car, standing on its floor (0.8 m above the track: TrainCar.tsx)
   [44, PIT_Y + 0.4, 6.0], // east tunnel near junction box
   [55.5, PIT_Y + 0.9, 9.8], // on the rubble near the collapse
   [19.6, 0.15, -6.3], // next to the vending machine
@@ -236,4 +237,84 @@ export const POEMS: { answer: string; lines: string[] }[] = [
 export const MORSE: Record<string, string> = {
   '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
   '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+}
+
+// =====================================================================
+// Second floor: the service level above the maintenance room.
+// A stairwell west of the maintenance room (reached through the service door, so only after the door
+// code) climbs to a corridor with five rooms. Two things up here are needed to win: the breakers in the
+// dispatch room unlock the storage room, and the gas rig in the boiler room feeds the detonator.
+// =====================================================================
+export const F2_Y = 7 // floor height
+export const F2_H = 3 // ceiling height above the floor
+export const F2_CORRIDOR = { minX: -20, maxX: 8, minZ: -19.6, maxZ: -17 }
+export const F2_ROOM_Z = { minZ: -27.6, maxZ: -19.8 }
+export const F2_ROOMS = [
+  { id: 'archive', name: 'АРХИВ', minX: -20, maxX: -14.4 },
+  { id: 'medbay', name: 'МЕДПУНКТ', minX: -14.4, maxX: -8.8 },
+  { id: 'dispatch', name: 'ДИСПЕТЧЕРСКАЯ', minX: -8.8, maxX: -3.2 },
+  { id: 'boiler', name: 'КОТЕЛЬНАЯ', minX: -3.2, maxX: 2.4 },
+  { id: 'storage', name: 'КАМЕРА ХРАНЕНИЯ', minX: 2.4, maxX: 8 },
+] as const
+export type F2RoomId = (typeof F2_ROOMS)[number]['id']
+export const f2Room = (id: F2RoomId) => F2_ROOMS.find((r) => r.id === id)!
+const roomX = (id: F2RoomId) => (f2Room(id).minX + f2Room(id).maxX) / 2
+/** The stairwell: x/z footprint from the ground (y = 0) up to the second floor. */
+export const STAIRWELL = { minX: -20, maxX: -14.4, minZ: -17, maxZ: -7.6 }
+
+// Dispatch room: six breakers on the far wall. Setting them to the hidden pattern unlocks the storage room.
+export const BREAKER_COUNT = 6
+export const BREAKER_POS: Vec3[] = Array.from({ length: BREAKER_COUNT }, (_, i) => [roomX('dispatch') + (i - 2.5) * 0.5, F2_Y + 1.45, F2_ROOM_Z.minZ + 0.14] as Vec3)
+export const STORAGE_DOOR = { x: roomX('storage'), z: F2_ROOM_Z.maxZ, width: 1.3, height: 2.3 }
+
+// Boiler room: three gas cylinders go into the rig, then each regulator is set to its pressure (0–5).
+export const GAS_COUNT = 3
+export const GAS_DIAL_STEPS = 6
+export const GAS_SOCKETS: Socket[] = Array.from({ length: GAS_COUNT }, (_, i) => ({
+  id: `gas${i}`, accepts: 'gas' as ItemKind, pos: [roomX('boiler') + (i - 1) * 1.1, F2_Y + 0.62, F2_ROOM_Z.minZ + 0.5] as Vec3,
+}))
+export const GAS_DIAL_POS: Vec3[] = GAS_SOCKETS.map((s) => [s.pos[0], F2_Y + 1.75, F2_ROOM_Z.minZ + 0.14] as Vec3)
+/** Where the cylinders start, standing on the floor: archive, medbay, and the locked storage room. */
+export const GAS_SPOTS: Vec3[] = [
+  [roomX('archive') - 1.6, F2_Y + 0.43, -26.4],
+  [roomX('medbay') + 1.7, F2_Y + 0.43, -25.2],
+  [roomX('storage') + 1.5, F2_Y + 0.43, -26.2],
+]
+
+/** Rats: they scurry around these spots on their own until someone picks them up. */
+export const RAT_SPOTS: Vec3[] = [
+  [roomX('archive') + 0.4, F2_Y + 0.05, -23.5],
+  [roomX('medbay') - 0.5, F2_Y + 0.05, -24.2],
+  [roomX('boiler') + 0.4, F2_Y + 0.05, -23],
+  [roomX('storage') - 0.4, F2_Y + 0.05, -23.6],
+  [-6, F2_Y + 0.05, -18.3], // corridor
+  [-17.6, 0.05, -16.1], // foot of the stairs
+  [-8, 0.05, -13], // maintenance room
+  [-36, PIT_Y + 0.05, 8], // west tunnel
+]
+/** How far a rat strays from its spot. */
+export const RAT_RANGE = 0.9
+
+/** Loose things on the second floor. Heights match the furniture in client/src/game/Floor2.tsx (tops at +0.9, the gurney at +0.55). */
+export const F2_PROPS: ItemSpec[] = [
+  { id: 'book1', kind: 'book', pos: [roomX('archive') + 0.8, F2_Y + 0.94, -27.05] },
+  { id: 'book2', kind: 'book', pos: [roomX('archive') + 1.6, F2_Y + 0.04, -22] },
+  { id: 'book3', kind: 'book', pos: [roomX('dispatch') + 2.0, F2_Y + 0.94, -24] },
+  { id: 'skull1', kind: 'skull', pos: [roomX('archive') + 1.9, F2_Y + 1.02, -27.05] },
+  { id: 'skull2', kind: 'skull', pos: [roomX('storage') - 1.8, F2_Y + 0.12, -26.8] },
+  { id: 'jar1', kind: 'jar', pos: [roomX('medbay') - 1.9, F2_Y + 1.02, -27.2] },
+  { id: 'jar2', kind: 'jar', pos: [roomX('medbay') - 1.3, F2_Y + 1.02, -27.2] },
+  { id: 'jar3', kind: 'jar', pos: [roomX('medbay') + 0.4, F2_Y + 0.12, -21.5] },
+  { id: 'mask1', kind: 'mask', pos: [roomX('boiler') - 1.9, F2_Y + 0.14, -21.2] },
+  { id: 'mask2', kind: 'mask', pos: [roomX('dispatch') - 2.2, F2_Y + 1.04, -25.4] },
+  { id: 'doll1', kind: 'doll', pos: [roomX('storage') + 0.2, F2_Y + 0.21, -25.5] },
+  { id: 'doll2', kind: 'doll', pos: [roomX('medbay') + 1.9, F2_Y + 0.76, -21.3] },
+  { id: 'crate4', kind: 'crate', pos: [roomX('storage') - 1.6, F2_Y + 0.41, -21.4] },
+  { id: 'chair2', kind: 'chair', pos: [roomX('dispatch') - 0.4, F2_Y + 0.46, -25.6] },
+  { id: 'bottle2', kind: 'bottle', pos: [roomX('boiler') + 1.8, F2_Y + 0.16, -21.3] },
+  { id: 'helmet2', kind: 'helmet', pos: [-12, F2_Y + 0.17, -18.2] },
+]
+
+export function onFloor2(p: Vec3) {
+  return p[1] > F2_Y - 0.5
 }
